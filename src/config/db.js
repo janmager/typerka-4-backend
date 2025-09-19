@@ -23,7 +23,11 @@ export async function initializeDatabase() {
                 state TEXT DEFAULT 'to-confirm',
                 phone TEXT,
                 register_at TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours'),
-                updated_at TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours')
+                updated_at TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours'),
+                logged_at TIMESTAMP DEFAULT NULL,
+                active_room TEXT DEFAULT NULL,
+                push_notifications BOOLEAN DEFAULT TRUE,
+                avatar TEXT DEFAULT '👤'
             )
         `;
         
@@ -32,6 +36,10 @@ export async function initializeDatabase() {
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT`;
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS register_at TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours')`;
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours')`;
+            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS logged_at TIMESTAMP DEFAULT NULL`;
+            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS active_room TEXT DEFAULT NULL`;
+            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS push_notifications BOOLEAN DEFAULT TRUE`;
+            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT DEFAULT '👤'`;
         } catch (alterError) {
             // Columns might already exist, which is fine
             console.log('Columns might already exist or alter failed:', alterError.message);

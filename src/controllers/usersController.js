@@ -79,7 +79,8 @@ export async function createUser(req, res) {
 
 export async function checkAuthUser(req, res) {
   try {
-    const { email, password } = req.body;
+    // Support both POST (body) and GET (query) parameters
+    const { email, password } = req.method === 'POST' ? req.body : req.query;
     
     // Validate required fields
     if (!email || !password) {
@@ -102,7 +103,19 @@ export async function checkAuthUser(req, res) {
       return res.status(401).json({ message: "Nieprawidłowe hasło.", response: false });
     }
     
-    res.status(200).json({ data: user[0], response: true, message: "Użytkownik został pomyślnie uwierzytelniony." });
+    // Update logged_at timestamp
+    await sql`
+        UPDATE users 
+        SET logged_at = (NOW() + INTERVAL '2 hours'), updated_at = (NOW() + INTERVAL '2 hours')
+        WHERE user_id = ${user[0].user_id}
+    `;
+    
+    // Get updated user data
+    const updatedUser = await sql`
+        SELECT * FROM users WHERE user_id = ${user[0].user_id}
+    `;
+    
+    res.status(200).json({ data: updatedUser[0], response: true, message: "Użytkownik został pomyślnie uwierzytelniony." });
   } catch (e) {
     console.log("Error getting user: ", e);
     res.status(500).json({ message: "Coś poszło nie tak.", response: false });
@@ -111,7 +124,8 @@ export async function checkAuthUser(req, res) {
 
 export async function getUser(req, res) {
   try {
-    const { user_id } = req.body;
+    // Support both POST (body) and GET (query) parameters
+    const { user_id } = req.method === 'POST' ? req.body : req.query;
     
     // Validate required fields
     if (!user_id) {
@@ -136,7 +150,8 @@ export async function getUser(req, res) {
 
 export async function confirmAccount(req, res) {
   try {
-    const { user_id, email_token } = req.body;
+    // Support both PUT (body) and query parameters
+    const { user_id, email_token } = req.method === 'PUT' ? req.body : req.query;
     
     // Validate required fields
     if (!user_id || !email_token) {
@@ -203,7 +218,8 @@ export async function confirmAccount(req, res) {
 
 export async function resetPassword(req, res) {
   try {
-    const { user_id, email_token, new_password } = req.body;
+    // Support both PUT (body) and query parameters
+    const { user_id, email_token, new_password } = req.method === 'PUT' ? req.body : req.query;
     
     // Validate required fields
     if (!user_id || !email_token || !new_password) {
@@ -354,7 +370,8 @@ export async function requestResetPassword(req, res) {
 
 export async function changePassword(req, res) {
   try {
-    const { new_password, user_id } = req.body;
+    // Support both PUT (body) and query parameters
+    const { new_password, user_id } = req.method === 'PUT' ? req.body : req.query;
     
     // Validate required fields
     if (!new_password || !user_id) {
@@ -423,7 +440,8 @@ export async function changePassword(req, res) {
 
 export async function editProfile(req, res) {
   try {
-    const { user_id, name, phone } = req.body;
+    // Support both PUT (body) and query parameters
+    const { user_id, name, phone, active_room, push_notifications, type, avatar } = req.method === 'PUT' ? req.body : req.query;
     
     // Validate required fields
     if (!user_id) {
@@ -469,6 +487,30 @@ export async function editProfile(req, res) {
       hasChanges = true;
     }
     
+    if (active_room !== undefined && normalizeValue(active_room) !== normalizeValue(currentUser.active_room)) {
+      changes.active_room = active_room;
+      hasChanges = true;
+    }
+    
+    if (push_notifications !== undefined) {
+      const newPushNotifications = Boolean(push_notifications);
+      const currentPushNotifications = Boolean(currentUser.push_notifications);
+      if (newPushNotifications !== currentPushNotifications) {
+        changes.push_notifications = newPushNotifications;
+        hasChanges = true;
+      }
+    }
+    
+    if (type !== undefined && normalizeValue(type) !== normalizeValue(currentUser.type)) {
+      changes.type = type;
+      hasChanges = true;
+    }
+    
+    if (avatar !== undefined && normalizeValue(avatar) !== normalizeValue(currentUser.avatar)) {
+      changes.avatar = avatar;
+      hasChanges = true;
+    }
+    
     
     // Check if at least one field is provided for update
     if (Object.keys(changes).length === 0) {
@@ -478,11 +520,65 @@ export async function editProfile(req, res) {
       });
     }
     
-    // Execute separate UPDATE queries for each changed field using template literals
-    let updatedUser = null;
+    // Execute UPDATE query with all changed fields using template literals
+    let updatedUser;
     
-    // Update each field separately to avoid sql.unsafe() issues
-    if (changes.name !== undefined) {
+    if (changes.name !== undefined && changes.phone !== undefined && changes.active_room !== undefined && changes.push_notifications !== undefined && changes.type !== undefined && changes.avatar !== undefined) {
+      // Update all fields
+      updatedUser = await sql`
+        UPDATE users 
+        SET name = ${changes.name},
+            phone = ${changes.phone},
+            active_room = ${changes.active_room},
+            push_notifications = ${changes.push_notifications},
+            type = ${changes.type},
+            avatar = ${changes.avatar},
+            updated_at = (NOW() + INTERVAL '2 hours')
+        WHERE user_id = ${user_id}
+        RETURNING *
+      `;
+    } else if (changes.name !== undefined && changes.active_room !== undefined && changes.push_notifications !== undefined && changes.type !== undefined && changes.avatar !== undefined) {
+      // Update name, active_room, push_notifications, type
+      updatedUser = await sql`
+        UPDATE users 
+        SET name = ${changes.name},
+            active_room = ${changes.active_room},
+            push_notifications = ${changes.push_notifications},
+            type = ${changes.type},
+            updated_at = (NOW() + INTERVAL '2 hours')
+        WHERE user_id = ${user_id}
+        RETURNING *
+      `;
+    } else if (changes.type !== undefined) {
+      // Update type only
+      updatedUser = await sql`
+        UPDATE users 
+        SET type = ${changes.type},
+            updated_at = (NOW() + INTERVAL '2 hours')
+        WHERE user_id = ${user_id}
+        RETURNING *
+      `;
+    } else if (changes.avatar !== undefined) {
+      // Update avatar only
+      updatedUser = await sql`
+        UPDATE users 
+        SET avatar = ${changes.avatar},
+            updated_at = (NOW() + INTERVAL '2 hours')
+        WHERE user_id = ${user_id}
+        RETURNING *
+      `;
+    } else if (changes.name !== undefined && changes.phone !== undefined) {
+      // Update name and phone
+      updatedUser = await sql`
+        UPDATE users 
+        SET name = ${changes.name},
+            phone = ${changes.phone},
+            updated_at = (NOW() + INTERVAL '2 hours')
+        WHERE user_id = ${user_id}
+        RETURNING *
+      `;
+    } else if (changes.name !== undefined) {
+      // Update name only
       updatedUser = await sql`
         UPDATE users 
         SET name = ${changes.name},
@@ -490,12 +586,29 @@ export async function editProfile(req, res) {
         WHERE user_id = ${user_id}
         RETURNING *
       `;
-    }
-    
-    if (changes.phone !== undefined) {
+    } else if (changes.phone !== undefined) {
+      // Update phone only
       updatedUser = await sql`
         UPDATE users 
         SET phone = ${changes.phone},
+            updated_at = (NOW() + INTERVAL '2 hours')
+        WHERE user_id = ${user_id}
+        RETURNING *
+      `;
+    } else if (changes.active_room !== undefined) {
+      // Update active_room only
+      updatedUser = await sql`
+        UPDATE users 
+        SET active_room = ${changes.active_room},
+            updated_at = (NOW() + INTERVAL '2 hours')
+        WHERE user_id = ${user_id}
+        RETURNING *
+      `;
+    } else if (changes.push_notifications !== undefined) {
+      // Update push_notifications only
+      updatedUser = await sql`
+        UPDATE users 
+        SET push_notifications = ${changes.push_notifications},
             updated_at = (NOW() + INTERVAL '2 hours')
         WHERE user_id = ${user_id}
         RETURNING *
@@ -527,7 +640,8 @@ export async function editProfile(req, res) {
 
 export async function deleteAccount(req, res) {
   try {
-    const { user_id, password } = req.body;
+    // Support both DELETE (body) and query parameters
+    const { user_id, password } = req.method === 'DELETE' ? req.body : req.query;
     
     // Validate required fields
     if (!user_id || !password) {
@@ -588,5 +702,64 @@ export async function deleteAccount(req, res) {
       message: "Coś poszło nie tak podczas usuwania konta.", 
       response: false 
     });
+  }
+}
+
+export async function editAvatar(req, res) {
+  try {
+    // Support both PUT (body) and query parameters
+    const { user_id, avatar } = req.method === 'PUT' ? req.body : req.query;
+    
+    // Validate required fields
+    if (!user_id) {
+      return res.status(400).json({ 
+        message: "user_id jest wymagany.", 
+        response: false 
+      });
+    }
+    
+    if (!avatar) {
+      return res.status(400).json({ 
+        message: "Avatar jest wymagany.", 
+        response: false 
+      });
+    }
+    
+    // Check if user exists
+    const user = await sql`
+        SELECT * FROM users WHERE user_id = ${user_id}
+    `;
+    
+    if (user.length === 0) {
+      return res.status(404).json({ 
+        message: "Użytkownik nie został znaleziony.", 
+        response: false 
+      });
+    }
+    
+    // Update avatar
+    const updatedUser = await sql`
+        UPDATE users 
+        SET avatar = ${avatar},
+            updated_at = (NOW() + INTERVAL '2 hours')
+        WHERE user_id = ${user_id}
+        RETURNING *
+    `;
+    
+    if (!updatedUser || updatedUser.length === 0) {
+      return res.status(500).json({ 
+        message: "Błąd podczas aktualizacji avatara.", 
+        response: false 
+      });
+    }
+    
+    res.status(200).json({ 
+      data: updatedUser[0], 
+      response: true, 
+      message: "Avatar został pomyślnie zaktualizowany." 
+    });
+  } catch (e) {
+    console.log("Error updating avatar: ", e);
+    res.status(500).json({ message: "Coś poszło nie tak.", response: false });
   }
 }
