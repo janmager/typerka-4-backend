@@ -4,7 +4,9 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import rateLimiter from "./middleware/rateLimiter.js";
 import { wakeupJob } from "./config/cron.js";
+import { initializeDatabase } from "./config/db.js";
 import usersRoute from "./routes/usersRoute.js";
+import mailingRoute from "./routes/mailingRoute.js";
 
 dotenv.config();
 
@@ -27,7 +29,12 @@ if (process.env.NODE_ENV === "production" || test) {
 
 const PORT = process.env.PORT || 5001;
 
+// Initialize database
+initializeDatabase().catch(console.error);
+
+// Routes
 app.use("/api/users", usersRoute);
+app.use("/api/mailing", mailingRoute);
 
 app.get("/api/health", (req, res) => {
     res.send("API is working fine.");
