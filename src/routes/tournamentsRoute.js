@@ -1,9 +1,17 @@
 import express from "express";
-import { getAllTournaments } from "../controllers/tournamentsController.js";
+import { getAllTournaments, joinTournament, getTournamentParticipants, getActiveTournament, setActiveTournament } from "../controllers/tournamentsController.js";
 
 const router = express.Router();
 
 // GET /api/tournaments - Get all active tournaments (public)
 router.get("/", getAllTournaments);
+// POST /api/tournaments/join - join tournament
+router.post("/join", joinTournament);
+// GET /api/tournaments/:tournament_id/participants - list participants
+router.get("/:tournament_id/participants", getTournamentParticipants);
+// GET /api/tournaments/active?user_id=... - get active tournament details for user
+router.get("/active", getActiveTournament);
+// POST /api/tournaments/active - set active tournament for user
+router.post("/active", setActiveTournament);
 
 export default router;

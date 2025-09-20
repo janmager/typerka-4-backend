@@ -13,6 +13,8 @@ import adminTeamsRoute from "./routes/adminTeamsRoute.js";
 import adminMatchesRoute from "./routes/adminMatchesRoute.js";
 import apiIntegrationRoute from "./routes/apiIntegrationRoute.js";
 import tournamentsRoute from "./routes/tournamentsRoute.js";
+import matchesRoute from "./routes/matchesRoute.js";
+import activitiesRoute from "./routes/activitiesRoute.js";
 
 dotenv.config();
 
@@ -47,6 +49,8 @@ app.use("/api/admin", adminTeamsRoute);
 app.use("/api/admin", adminMatchesRoute);
 app.use("/api/admin", apiIntegrationRoute);
 app.use("/api/tournaments", tournamentsRoute);
+app.use("/api/matches", matchesRoute);
+app.use("/api/activities", activitiesRoute);
 
 app.get("/api/health", (req, res) => {
     res.send("API is working fine.");

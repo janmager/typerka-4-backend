@@ -11,6 +11,8 @@ export async function initializeDatabase() {
     try {
         // Set timezone to Europe/Warsaw for consistent timestamps
         await sql`SET timezone = 'Europe/Warsaw'`;
+        // Ensure pgcrypto for UUIDs
+        try { await sql`CREATE EXTENSION IF NOT EXISTS pgcrypto`; } catch (e) {}
         
         await sql`
             CREATE TABLE IF NOT EXISTS users (
@@ -33,7 +35,7 @@ export async function initializeDatabase() {
         
         await sql`
             CREATE TABLE IF NOT EXISTS leagues (
-                id SERIAL PRIMARY KEY,
+                id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
                 league_id VARCHAR(255) NOT NULL,
                 league_name VARCHAR(255) NOT NULL,
                 league_slug VARCHAR(255) NOT NULL,
@@ -50,7 +52,7 @@ export async function initializeDatabase() {
         // Create teams table
         await sql`
             CREATE TABLE IF NOT EXISTS teams (
-                id SERIAL PRIMARY KEY,
+                id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
                 name VARCHAR(255) NOT NULL,
                 slug VARCHAR(255) NOT NULL UNIQUE,
                 logo VARCHAR(255) NOT NULL,
@@ -65,7 +67,7 @@ export async function initializeDatabase() {
         // Create matches table
         await sql`
             CREATE TABLE IF NOT EXISTS matches (
-                id SERIAL PRIMARY KEY,
+                id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
                 match_id VARCHAR(255),
                 home_team VARCHAR(255) NOT NULL,
                 away_team VARCHAR(255) NOT NULL,
@@ -95,13 +97,12 @@ export async function initializeDatabase() {
         // Create tournaments table
         await sql`
             CREATE TABLE IF NOT EXISTS tournaments (
-                id SERIAL PRIMARY KEY,
+                id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
                 name VARCHAR(255) NOT NULL,
                 slug VARCHAR(255) NOT NULL UNIQUE,
                 description TEXT NOT NULL,
                 status VARCHAR(255) NOT NULL DEFAULT 'inactive',
                 league_id INT NOT NULL,
-                players INT[] NOT NULL DEFAULT '{}',
                 max_participants INT NOT NULL,
                 start_date DATE NOT NULL,
                 matches INT[] NOT NULL DEFAULT '{}',
@@ -114,6 +115,32 @@ export async function initializeDatabase() {
                 updated_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours')
             )
         `;
+
+        // Drop legacy players column if exists
+        try {
+            await sql`ALTER TABLE tournaments DROP COLUMN IF EXISTS players`;
+        } catch (dropPlayersError) {}
+
+        // Create tournaments_joins table
+        await sql`
+            CREATE TABLE IF NOT EXISTS tournaments_joins (
+                id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+                tournament_id TEXT NOT NULL,
+                user_id VARCHAR(255) NOT NULL,
+                status VARCHAR(255) NOT NULL DEFAULT 'pending',
+                points INT NOT NULL DEFAULT 0,
+                local_ranking INT NOT NULL DEFAULT 0,
+                deposit INT NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours'),
+                created_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours'),
+                CONSTRAINT tournaments_joins_status_check CHECK (status IN ('pending','active','blocked','finished')),
+                CONSTRAINT tournaments_joins_tournament_fk FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
+                CONSTRAINT tournaments_joins_user_fk FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+            )
+        `;
+        // Ensure unique join per user/tournament and helpful indexes
+        await sql`CREATE UNIQUE INDEX IF NOT EXISTS tournaments_joins_unique ON tournaments_joins(tournament_id, user_id)`;
+        await sql`CREATE INDEX IF NOT EXISTS tournaments_joins_user_idx ON tournaments_joins(user_id)`;
         
         // Add constraints and indexes
         try {
@@ -222,7 +249,7 @@ export async function initializeDatabase() {
             
             // Ensure uniqueness on teams.team_id for FK referencing
             try {
-                await sql`CREATE UNIQUE INDEX IF NOT EXISTS teams_team_id_unique_idx ON teams(team_id)`;
+            await sql`CREATE UNIQUE INDEX IF NOT EXISTS teams_team_id_unique_idx ON teams(team_id)`;
             } catch (idxError) {}
 
             // Normalize matches teams to store teams.team_id and remove unmatched records
@@ -286,16 +313,74 @@ export async function initializeDatabase() {
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS register_at TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours')`;
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours')`;
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS logged_at TIMESTAMP DEFAULT NULL`;
-            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS active_room TEXT DEFAULT NULL`;
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS push_notifications BOOLEAN DEFAULT TRUE`;
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT DEFAULT '👤'`;
         } catch (alterError) {}
+
+        // Rename active_room -> active_tournament and add FK
+        try {
+            const col = await sql`SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='active_room'`;
+            if (col.length > 0) {
+                await sql`ALTER TABLE users RENAME COLUMN active_room TO active_tournament`;
+            } else {
+                await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS active_tournament TEXT DEFAULT NULL`;
+            }
+            // Ensure column type is TEXT
+            try { await sql`ALTER TABLE users ALTER COLUMN active_tournament TYPE TEXT`; } catch (e) {}
+            // Drop existing FK if any and add new FK to tournaments(id)
+            await sql`
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_name='users' AND constraint_name='users_active_tournament_fk') THEN
+                        ALTER TABLE users DROP CONSTRAINT users_active_tournament_fk;
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tournaments' AND column_name='id') THEN
+                        ALTER TABLE users
+                        ADD CONSTRAINT users_active_tournament_fk
+                        FOREIGN KEY (active_tournament) REFERENCES tournaments(id) ON DELETE SET NULL;
+                    END IF;
+                END $$;
+            `;
+            // Helpful index for lookups
+            try { await sql`CREATE INDEX IF NOT EXISTS users_active_tournament_idx ON users(active_tournament)`; } catch (e) {}
+        } catch (e) {}
+
+        // Migrate existing numeric ids to text (uuid) by casting where needed
+        try { await sql`ALTER TABLE leagues ALTER COLUMN id TYPE TEXT USING id::text`; } catch (e) {}
+        try { await sql`ALTER TABLE teams ALTER COLUMN id TYPE TEXT USING id::text`; } catch (e) {}
+        try { await sql`ALTER TABLE matches ALTER COLUMN id TYPE TEXT USING id::text`; } catch (e) {}
+        try { await sql`ALTER TABLE tournaments ALTER COLUMN id TYPE TEXT USING id::text`; } catch (e) {}
+        try { await sql`ALTER TABLE tournaments_joins ALTER COLUMN id TYPE TEXT USING id::text`; } catch (e) {}
+        try { await sql`ALTER TABLE tournaments_joins ALTER COLUMN tournament_id TYPE TEXT USING tournament_id::text`; } catch (e) {}
 
         // Add new columns to existing teams table if they don't exist
         try {
             await sql`ALTER TABLE teams ADD COLUMN IF NOT EXISTS team_id VARCHAR(255)`;
             console.log('Added team_id column to teams table (if not exists)');
         } catch (alterError) {}
+
+        // Activities table
+        await sql`
+            CREATE TABLE IF NOT EXISTS activities (
+                id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+                user_id TEXT NOT NULL,
+                icon VARCHAR(255),
+                type VARCHAR(255),
+                title VARCHAR(255),
+                message TEXT,
+                is_read BOOLEAN NOT NULL DEFAULT FALSE,
+                action_url TEXT,
+                created_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours'),
+                updated_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours'),
+                CONSTRAINT activities_user_fk FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+            )
+        `;
+        // Migrate legacy columns if present
+        try { await sql`ALTER TABLE activities DROP COLUMN IF EXISTS timestamp`; } catch (e) {}
+        try { await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours')`; } catch (e) {}
+        try { await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours')`; } catch (e) {}
+        await sql`CREATE INDEX IF NOT EXISTS activities_user_idx ON activities(user_id)`;
+        await sql`CREATE INDEX IF NOT EXISTS activities_created_at_idx ON activities(created_at)`;
 
         // Add new columns to existing matches table if they don't exist
         try {

@@ -1,4 +1,5 @@
 import { sql } from "../config/db.js";
+import { addActivityInternal } from "./activitiesController.js";
 import { hashPass, comparePass } from "../config/password.js";
 import { sendConfirmAccountEmailInternal, sendRequestPasswordResetEmailInternal, sendPasswordChangedEmailInternal } from "./mailingController.js";
 
@@ -115,6 +116,14 @@ export async function checkAuthUser(req, res) {
         SELECT * FROM users WHERE user_id = ${user[0].user_id}
     `;
     
+    // Activity: login
+    addActivityInternal(updatedUser[0].user_id, {
+      icon: '🔓',
+      type: 'login',
+      title: 'Logowanie',
+      message: `Zalogowano jako ${updatedUser[0].email}`,
+      action_url: '/panel'
+    });
     res.status(200).json({ data: updatedUser[0], response: true, message: "Użytkownik został pomyślnie uwierzytelniony." });
   } catch (e) {
     console.log("Error getting user: ", e);
@@ -201,6 +210,14 @@ export async function confirmAccount(req, res) {
     
     console.log('Account confirmed successfully for user:', user_id);
     
+    // Activity: account confirmed
+    addActivityInternal(updatedUser[0].user_id, {
+      icon: '✅',
+      type: 'confirm_account',
+      title: 'Konto potwierdzone',
+      message: 'Twoje konto zostało potwierdzone',
+      action_url: '/panel'
+    });
     res.status(200).json({ 
       data: updatedUser[0], 
       response: true, 
@@ -275,6 +292,14 @@ export async function resetPassword(req, res) {
     
     console.log('Password reset successfully for user:', userEmail);
     
+    // Activity: password reset
+    addActivityInternal(user_id, {
+      icon: '🔑',
+      type: 'password_reset',
+      title: 'Zmieniono hasło',
+      message: 'Hasło zostało zresetowane',
+      action_url: '/logowanie'
+    });
     res.status(200).json({ 
       message: "Hasło zostało pomyślnie zresetowane. Otrzymasz email potwierdzający.", 
       response: true 
@@ -424,6 +449,14 @@ export async function changePassword(req, res) {
     
     console.log('Password changed successfully for user:', user[0].email);
     
+    // Activity: password changed
+    addActivityInternal(user_id, {
+      icon: '🔐',
+      type: 'password_changed',
+      title: 'Zmieniono hasło',
+      message: 'Hasło zostało zmienione',
+      action_url: '/panel/profil'
+    });
     res.status(200).json({ 
       message: "Hasło zostało pomyślnie zmienione. Otrzymasz email potwierdzający.", 
       response: true 
@@ -623,6 +656,14 @@ export async function editProfile(req, res) {
       });
     }
     
+    // Activity: profile updated
+    addActivityInternal(user_id, {
+      icon: '📝',
+      type: 'profile_update',
+      title: 'Zaktualizowano profil',
+      message: 'Dane profilu zostały zaktualizowane',
+      action_url: '/panel/profil'
+    });
     res.status(200).json({ 
       data: updatedUser[0], 
       response: true, 
@@ -691,6 +732,14 @@ export async function deleteAccount(req, res) {
     
     console.log('Account deleted successfully for user:', user_id);
     
+    // Activity: account deleted
+    addActivityInternal(user_id, {
+      icon: '🛑',
+      type: 'account_deleted',
+      title: 'Konto usunięte',
+      message: 'Twoje konto zostało oznaczone jako usunięte',
+      action_url: '/'
+    });
     res.status(200).json({ 
       message: "Konto zostało pomyślnie usunięte.", 
       response: true 
@@ -753,10 +802,18 @@ export async function editAvatar(req, res) {
       });
     }
     
+    // Activity: avatar changed
+    addActivityInternal(user_id, {
+      icon: '🙂',
+      type: 'avatar_changed',
+      title: 'Zmieniono avatar',
+      message: 'Twój avatar został zaktualizowany',
+      action_url: '/panel/profil'
+    });
     res.status(200).json({ 
       data: updatedUser[0], 
       response: true, 
-      message: "Avatar został pomyślnie zaktualizowany." 
+      message: "Zapisano!" 
     });
   } catch (e) {
     console.log("Error updating avatar: ", e);

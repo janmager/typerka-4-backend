@@ -33,44 +33,33 @@ async function fetchTeamsForLeague(leagueId, season = new Date().getFullYear()) 
 async function fetchFixturesForLeague(leagueId, season = new Date().getFullYear()) {
     try {
         const apiKey = process.env.API_FOOTBALL_KEY;
-        // Compute 'from' as yesterday in Europe/Warsaw (YYYY-MM-DD)
-        const now = new Date();
-        const parts = new Intl.DateTimeFormat('en-CA', {
-            timeZone: 'Europe/Warsaw',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-        }).formatToParts(now);
-        const yearPart = parts.find(p => p.type === 'year');
-        const monthPart = parts.find(p => p.type === 'month');
-        const dayPart = parts.find(p => p.type === 'day');
-        const warsawTodayUTC = new Date(Date.UTC(
-            Number(yearPart?.value),
-            Number(monthPart?.value) - 1,
-            Number(dayPart?.value)
-        ));
-        warsawTodayUTC.setUTCDate(warsawTodayUTC.getUTCDate() - 1);
-        const from = `${warsawTodayUTC.getUTCFullYear()}-${String(warsawTodayUTC.getUTCMonth() + 1).padStart(2, '0')}-${String(warsawTodayUTC.getUTCDate()).padStart(2, '0')}`;
-
-        const fixturesUrl = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=${season}&timezone=Europe/Warsaw&from=${from}`;
-        console.log(fixturesUrl);
-        console.log(`Fetching fixtures for league ${leagueId}, season ${season}...`);
-        
-        const response = await fetch(fixturesUrl, {
-            method: 'GET',
-            headers: {
-                'X-RapidAPI-Key': apiKey,
-                'X-RapidAPI-Host': 'v3.football.api-sports.io'
+        const baseUrl = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=${season}&timezone=Europe/Warsaw`;
+        let all = [];
+        let page = 1;
+        let total = 1;
+        do {
+            const url = `${baseUrl}&page=${page}`;
+            console.log(`Fetching fixtures page ${page}: ${url}`);
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'X-RapidAPI-Key': apiKey,
+                    'X-RapidAPI-Host': 'v3.football.api-sports.io'
+                }
+            });
+            if (!response.ok) {
+                console.error(`API-Football fixtures request failed with status: ${response.status}`);
+                break;
             }
-        });
-
-        if (!response.ok) {
-            console.error(`API-Football fixtures request failed with status: ${response.status}`);
-            return [];
-        }
-
-        const data = await response.json();
-        return data.response || [];
+            const data = await response.json();
+            const items = Array.isArray(data.response) ? data.response : [];
+            all = all.concat(items);
+            const paging = data.paging || { current: page, total: page };
+            page = Number(paging.current || page) + 1;
+            total = Number(paging.total || page - 1);
+        } while (page <= total && page < 1000);
+        console.log(`Fetched ${all.length} fixtures for league ${leagueId}, season ${season}`);
+        return all;
     } catch (error) {
         console.error('Error fetching fixtures:', error);
         return [];
@@ -85,39 +74,68 @@ async function storeTeams(teams) {
         const team = teamData.team;
         
         try {
-            // Check if team already exists (using name as identifier for custom table)
-            const existingTeam = await sql`
-                SELECT id FROM teams WHERE name = ${team.name}
+            const teamIdStr = team.id ? team.id.toString() : null;
+            if (!teamIdStr) continue;
+
+            // Check if team already exists by team_id (primary external key)
+            const existingById = await sql`
+                SELECT id, slug FROM teams WHERE team_id = ${teamIdStr} LIMIT 1
             `;
 
-            if (existingTeam.length === 0) {
-                // Create slug from team name
-                const slug = team.name
-                    .toLowerCase()
-                    .replace(/[^a-z0-9\s-]/g, '')
-                    .replace(/\s+/g, '-')
-                    .replace(/-+/g, '-')
-                    .trim('-');
-
-                // Insert new team with custom table structure
-                const result = await sql`
-                    INSERT INTO teams (
-                        name, slug, logo, label, country, team_id
-                    ) VALUES (
-                        ${team.name}, ${slug}, ${team.logo || ''}, 
-                        ${team.code || team.name.substring(0, 6).toUpperCase()}, 
-                        ${team.country || 'Unknown'}, ${team.id ? team.id.toString() : null}
-                    ) RETURNING *
-                `;
-                storedTeams.push(result[0]);
-                console.log(`Stored team: ${team.name}`);
-            } else {
-                console.log(`Team ${team.name} already exists, skipping...`);
-                storedTeams.push(existingTeam[0]);
+            if (existingById.length > 0) {
+                // Optionally update basic attrs (name/logo/label/country)
+                try {
+                    await sql`
+                        UPDATE teams SET 
+                            name = ${team.name},
+                            logo = ${team.logo || ''},
+                            label = ${team.code || team.name.substring(0, 6).toUpperCase()},
+                            country = ${team.country || 'Unknown'},
+                            updated_at = NOW() + INTERVAL '2 hours'
+                        WHERE team_id = ${teamIdStr}
+                    `;
+                } catch {}
+                storedTeams.push(existingById[0]);
+                continue;
             }
+
+            // Create slug from team name
+            const baseSlug = team.name
+                .toLowerCase()
+                .replace(/[^a-z0-9\s-]/g, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-')
+                .trim('-');
+
+            // Ensure slug is unique
+            let finalSlug = baseSlug || `team-${teamIdStr}`;
+            let counter = 1;
+            while (true) {
+                const slugCheck = await sql`
+                    SELECT id FROM teams 
+                    WHERE slug = ${finalSlug}
+                `;
+                if (slugCheck.length === 0) break;
+                finalSlug = `${baseSlug}-${counter}`;
+                counter++;
+            }
+
+            // Insert new team
+            const result = await sql`
+                INSERT INTO teams (
+                    name, slug, logo, label, country, team_id
+                ) VALUES (
+                    ${team.name}, ${finalSlug}, ${team.logo || ''}, 
+                    ${team.code || team.name.substring(0, 6).toUpperCase()}, 
+                    ${team.country || 'Unknown'}, ${teamIdStr}
+                ) RETURNING *
+            `;
+            storedTeams.push(result[0]);
+            console.log(`Stored team: ${team.name}`);
         } catch (error) {
-            console.error(`Error storing team ${team.name}:`, error);
-            throw error; // Re-throw to be caught by the calling function
+            console.error(`Error storing team ${team?.name || 'unknown'}:`, error.message);
+            // Continue with the rest; don't throw to avoid stopping matches storage
+            continue;
         }
     }
     
@@ -173,20 +191,18 @@ async function storeMatches(fixtures) {
                 }
             }
             
-            // Check if match already exists using match_id
+            // Check if match already exists using match_id only
             const existingMatch = await sql`
-                SELECT id FROM matches WHERE match_id = ${matchId}
+                SELECT id FROM matches WHERE match_id = ${matchId} LIMIT 1
             `;
 
-            // Determine match status
+            // Determine match status based on short code
+            const statusShort = fixture.fixture?.status?.short ? String(fixture.fixture.status.short).toUpperCase() : 'NS';
             let status = 'scheduled';
-            if (fixture.fixture?.status?.short) {
-                const statusShort = fixture.fixture.status.short;
-                if (statusShort === 'FT') status = 'finished';
-                else if (statusShort === 'LIVE' || statusShort === '1H' || statusShort === '2H' || statusShort === 'HT') status = 'live';
-                else if (statusShort === 'PST') status = 'postponed';
-                else if (statusShort === 'CANC') status = 'cancelled';
-            }
+            if (['FT','AET'].includes(statusShort)) status = 'finished';
+            else if (['1H','2H','HT','LIVE','ET','PEN'].includes(statusShort)) status = 'live';
+            else if (['PST','SUSP','INT'].includes(statusShort)) status = 'postponed';
+            else if (['CANC','ABD','AWD','WO'].includes(statusShort)) status = 'cancelled';
 
             // Extract match current time (elapsed time)
             const matchCurrentTime = fixture.fixture?.status?.elapsed ? 
@@ -208,7 +224,7 @@ async function storeMatches(fixtures) {
             const fullTimeAwayScore = fixture.score?.fulltime?.away !== undefined && fixture.score?.fulltime?.away !== null ? fixture.score.fulltime.away : null;
 
             if (existingMatch.length === 0) {
-                // Insert new match with all the new fields
+                // Insert new match
                 const result = await sql`
                     INSERT INTO matches (
                         match_id, home_team, away_team, home_team_score, away_team_score,
@@ -231,9 +247,13 @@ async function storeMatches(fixtures) {
                 storedMatches.push(result[0]);
                 console.log(`Stored match: ${fixture.teams?.home?.name || 'Unknown'} vs ${fixture.teams?.away?.name || 'Unknown'} (ID: ${matchId})`);
             } else {
-                // Update existing match with new information
+                // Update existing match by id with new information
+                const existingId = existingMatch[0].id;
                 const result = await sql`
                     UPDATE matches SET
+                        match_id = ${matchId},
+                        home_team = ${homeTeamId},
+                        away_team = ${awayTeamId},
                         home_team_score = ${goalsHome || 0},
                         away_team_score = ${goalsAway || 0},
                         match_current_time = ${matchCurrentTime},
@@ -250,8 +270,9 @@ async function storeMatches(fixtures) {
                         half_time_home_score = ${halfTimeHomeScore},
                         half_time_away_score = ${halfTimeAwayScore},
                         full_time_home_score = ${fullTimeHomeScore},
-                        full_time_away_score = ${fullTimeAwayScore}
-                    WHERE match_id = ${matchId}
+                        full_time_away_score = ${fullTimeAwayScore},
+                        updated_at = NOW() + INTERVAL '2 hours'
+                    WHERE id = ${existingId}
                     RETURNING *
                 `;
                 storedMatches.push(result[0]);

@@ -371,18 +371,18 @@ export async function addMatchFromApi(req, res) {
             score
         } = fixture_data;
 
-        // Check if match with this API fixture ID already exists
+        // Check if match with this API fixture ID already exists (by match_id)
         if (fixture.id) {
             const existingMatch = await sql`
                 SELECT id FROM matches 
-                WHERE api_fixture_id = ${fixture.id}
+                WHERE match_id = ${fixture.id}
             `;
 
             if (existingMatch.length > 0) {
                 return res.status(200).json({
                     response: true,
                     message: "Mecz już istnieje",
-                    data: { id: existingMatch[0].id, api_fixture_id: fixture.id }
+                    data: { id: existingMatch[0].id, match_id: fixture.id }
                 });
             }
         }
@@ -472,21 +472,25 @@ export async function addMatchFromApi(req, res) {
         const dateStr = matchDate.toISOString().split('T')[0];
         const timeStr = matchDate.toTimeString().split(' ')[0].substring(0, 5);
 
-        // Map API status to our status
-        const statusMap = {
-            'Not Started': 'scheduled',
-            'In Play': 'live',
-            'Match Finished': 'finished',
-            'Postponed': 'postponed',
-            'Cancelled': 'cancelled'
+        // Map API short status to our status
+        const short = fixture.status?.short || 'NS';
+        const mapShortToStatus = (s) => {
+            if (!s) return 'scheduled';
+            const upper = String(s).toUpperCase();
+            if (['NS', 'TBD', 'TBA'].includes(upper)) return 'scheduled';
+            if (['FT', 'AET'].includes(upper)) return 'finished';
+            if (['1H', '2H', 'HT', 'LIVE', 'ET', 'PEN'].includes(upper)) return 'live';
+            if (['PST', 'SUSP', 'INT'].includes(upper)) return 'postponed';
+            if (['CANC', 'ABD', 'AWD', 'WO'].includes(upper)) return 'cancelled';
+            return 'scheduled';
         };
-        const matchStatus = statusMap[fixture.status.long] || 'scheduled';
+        const matchStatus = mapShortToStatus(short);
 
         // Get scores - preserve null values if they are null in API response
         const homeScore = goals.home === null ? null : (goals.home || 0);
         const awayScore = goals.away === null ? null : (goals.away || 0);
 
-        // Check if league exists in api_leagues table
+        // Check if league exists in leagues table
         const leagueCheck = await sql`
             SELECT id FROM leagues WHERE league_id = ${league.id}
         `;
@@ -495,17 +499,17 @@ export async function addMatchFromApi(req, res) {
             throw new Error(`League with ID ${league.id} not found in leagues table`);
         }
 
-        // Insert new match (use team_id values)
+        // Insert new match (use team_id values) with match_id only
         const result = await sql`
             INSERT INTO matches (
-                home_team, away_team, home_team_score, away_team_score,
+                match_id, home_team, away_team, home_team_score, away_team_score,
                 league_id, status, stadium, match_date, match_time,
-                round, city, api_fixture_id
+                round, city
             ) VALUES (
-                ${homeTeamId}, ${awayTeamId}, ${homeScore}, ${awayScore},
+                ${fixture.id}, ${homeTeamId}, ${awayTeamId}, ${homeScore}, ${awayScore},
                 ${league.id}, ${matchStatus}, ${fixture.venue.name}, 
                 ${dateStr}, ${timeStr}, ${league.round || null}, 
-                ${fixture.venue.city || null}, ${fixture.id}
+                ${fixture.venue.city || null}
             ) RETURNING *
         `;
 
@@ -564,5 +568,138 @@ export async function getMatchByApiFixtureId(req, res) {
             response: false,
             message: "Błąd serwera podczas pobierania meczu"
         });
+    }
+}
+
+// Public: Get matches for user's active tournament (by tournament's league)
+export async function getMatchesForActiveTournament(req, res) {
+    try {
+        const { user_id } = req.query;
+        const limitRaw = req.query.limit ? Number(req.query.limit) : 20;
+        const beforeRaw = req.query.before ? String(req.query.before) : null;
+        const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(50, limitRaw)) : 20;
+
+        if (!user_id) return res.status(400).json({ response: false, message: 'Brak user_id' });
+        const userRows = await sql`SELECT user_id, state, active_tournament FROM users WHERE user_id = ${user_id}`;
+        if (userRows.length === 0) return res.status(404).json({ response: false, message: 'Użytkownik nie istnieje' });
+        if (userRows[0].state !== 'active') return res.status(403).json({ response: false, message: 'Konto nieaktywne' });
+        const activeTournamentId = userRows[0].active_tournament;
+        if (!activeTournamentId) return res.status(200).json({ response: true, data: [], next_cursor: null });
+
+        const tours = await sql`SELECT league_id FROM tournaments WHERE id = ${activeTournamentId} LIMIT 1`;
+        if (tours.length === 0) return res.status(200).json({ response: true, data: [], next_cursor: null });
+        const leagueId = tours[0].league_id;
+
+        let rows = [];
+        if (beforeRaw) {
+            const beforeTs = new Date(beforeRaw);
+            rows = await sql`
+                SELECT m.*, 
+                    ht.name as home_team_name, ht.logo as home_team_logo, ht.label as home_team_label,
+                    at.name as away_team_name, at.logo as away_team_logo, at.label as away_team_label,
+                    l.league_name, l.league_country,
+                    (m.match_date::timestamp + m.match_time) as dt
+                FROM matches m
+                LEFT JOIN teams ht ON m.home_team = ht.team_id
+                LEFT JOIN teams at ON m.away_team = at.team_id
+                LEFT JOIN leagues l ON m.league_id = l.league_id::int
+                WHERE m.league_id = ${leagueId} AND (m.match_date::timestamp + m.match_time) > ${beforeTs}
+                ORDER BY dt ASC
+                LIMIT ${limit + 1}
+            `;
+        } else {
+            rows = await sql`
+                SELECT m.*, 
+                    ht.name as home_team_name, ht.logo as home_team_logo, ht.label as home_team_label,
+                    at.name as away_team_name, at.logo as away_team_logo, at.label as away_team_label,
+                    l.league_name, l.league_country,
+                    (m.match_date::timestamp + m.match_time) as dt
+                FROM matches m
+                LEFT JOIN teams ht ON m.home_team = ht.team_id
+                LEFT JOIN teams at ON m.away_team = at.team_id
+                LEFT JOIN leagues l ON m.league_id = l.league_id::int
+                WHERE m.league_id = ${leagueId}
+                ORDER BY dt ASC
+                LIMIT ${limit + 1}
+            `;
+        }
+        let next_cursor = null;
+        if (rows.length > limit) {
+            const last = rows[limit - 1];
+            next_cursor = last.dt;
+            rows = rows.slice(0, limit);
+        }
+        return res.status(200).json({ response: true, data: rows, next_cursor });
+    } catch (error) {
+        console.error('Error getting matches for active tournament:', error);
+        return res.status(500).json({ response: false, message: 'Błąd serwera podczas pobierania meczów' });
+    }
+}
+
+// Public: Get all matches across user's tournaments (by their leagues)
+export async function getAllUserMatches(req, res) {
+    try {
+        const { user_id } = req.query;
+        const limitRaw = req.query.limit ? Number(req.query.limit) : 20;
+        const beforeRaw = req.query.before ? String(req.query.before) : null;
+        const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(50, limitRaw)) : 20;
+        if (!user_id) return res.status(400).json({ response: false, message: 'Brak user_id' });
+
+        const userRows = await sql`SELECT user_id, state FROM users WHERE user_id = ${user_id}`;
+        if (userRows.length === 0) return res.status(404).json({ response: false, message: 'Użytkownik nie istnieje' });
+        if (userRows[0].state !== 'active') return res.status(403).json({ response: false, message: 'Konto nieaktywne' });
+
+        const leagues = await sql`
+            SELECT DISTINCT t.league_id
+            FROM tournaments_joins tj
+            JOIN tournaments t ON t.id = tj.tournament_id
+            WHERE tj.user_id = ${user_id} AND tj.status IN ('pending','active')
+        `;
+        if (leagues.length === 0) return res.status(200).json({ response: true, data: [], next_cursor: null });
+        const leagueIds = leagues.map(r => r.league_id);
+
+        let rows = [];
+        if (beforeRaw) {
+            const beforeTs = new Date(beforeRaw);
+            rows = await sql`
+                SELECT m.*, 
+                    ht.name as home_team_name, ht.logo as home_team_logo, ht.label as home_team_label,
+                    at.name as away_team_name, at.logo as away_team_logo, at.label as away_team_label,
+                    l.league_name, l.league_country,
+                    (m.match_date::timestamp + m.match_time) as dt
+                FROM matches m
+                LEFT JOIN teams ht ON m.home_team = ht.team_id
+                LEFT JOIN teams at ON m.away_team = at.team_id
+                LEFT JOIN leagues l ON m.league_id = l.league_id::int
+                WHERE m.league_id = ANY(${leagueIds}) AND (m.match_date::timestamp + m.match_time) > ${beforeTs}
+                ORDER BY dt ASC
+                LIMIT ${limit + 1}
+            `;
+        } else {
+            rows = await sql`
+                SELECT m.*, 
+                    ht.name as home_team_name, ht.logo as home_team_logo, ht.label as home_team_label,
+                    at.name as away_team_name, at.logo as away_team_logo, at.label as away_team_label,
+                    l.league_name, l.league_country,
+                    (m.match_date::timestamp + m.match_time) as dt
+                FROM matches m
+                LEFT JOIN teams ht ON m.home_team = ht.team_id
+                LEFT JOIN teams at ON m.away_team = at.team_id
+                LEFT JOIN leagues l ON m.league_id = l.league_id::int
+                WHERE m.league_id = ANY(${leagueIds})
+                ORDER BY dt ASC
+                LIMIT ${limit + 1}
+            `;
+        }
+        let next_cursor = null;
+        if (rows.length > limit) {
+            const last = rows[limit - 1];
+            next_cursor = last.dt;
+            rows = rows.slice(0, limit);
+        }
+        return res.status(200).json({ response: true, data: rows, next_cursor });
+    } catch (error) {
+        console.error('Error getting all user matches:', error);
+        return res.status(500).json({ response: false, message: 'Błąd serwera podczas pobierania meczów' });
     }
 }
