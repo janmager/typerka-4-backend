@@ -5,7 +5,9 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "clear && nodemon src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "migrate:league-fk": "node run-migration.js league-fk-migration.sql",
+    "migrate:team-fk": "node run-migration.js team-fk-migration.sql"
   },
   "keywords": ["finance", "backend", "firebase", "notifications"],
   "author": "",

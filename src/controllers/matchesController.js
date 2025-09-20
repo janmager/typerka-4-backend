@@ -1,0 +1,568 @@
+import { sql } from "../config/db.js";
+
+// Get all matches with team details (admin)
+export async function getAllMatches(req, res) {
+    try {
+        const matches = await sql`
+            SELECT 
+                m.*,
+                ht.name as home_team_name,
+                ht.logo as home_team_logo,
+                ht.label as home_team_label,
+                at.name as away_team_name,
+                at.logo as away_team_logo,
+                at.label as away_team_label,
+                l.league_name,
+                l.league_country
+            FROM matches m
+            LEFT JOIN teams ht ON m.home_team = ht.team_id
+            LEFT JOIN teams at ON m.away_team = at.team_id
+            LEFT JOIN leagues l ON m.league_id = l.league_id::int
+            ORDER BY m.match_date DESC, m.match_time DESC
+        `;
+
+        res.status(200).json({
+            response: true,
+            data: matches
+        });
+    } catch (error) {
+        console.error('Error getting matches:', error);
+        res.status(500).json({
+            response: false,
+            message: "Błąd serwera podczas pobierania meczów"
+        });
+    }
+}
+
+// Add new match
+export async function addMatch(req, res) {
+    try {
+        const {
+            home_team,
+            away_team,
+            home_team_score,
+            away_team_score,
+            match_current_time,
+            league_id,
+            status = 'scheduled',
+            stadium,
+            match_date,
+            match_time,
+            round,
+            city,
+            api_fixture_id
+        } = req.body;
+
+        console.log("Add match request:", req.body);
+
+        // Validate required fields
+        if (!home_team || !away_team || !league_id || !stadium || !match_date || !match_time) {
+            return res.status(400).json({
+                response: false,
+                message: "Brak wymaganych pól: home_team, away_team, league_id, stadium, match_date, match_time"
+            });
+        }
+
+        // Validate that home_team and away_team are different
+        if (home_team === away_team) {
+            return res.status(400).json({
+                response: false,
+                message: "Drużyna domowa i gości muszą być różne"
+            });
+        }
+
+        // Validate status
+        if (!['scheduled', 'live', 'finished', 'postponed', 'cancelled'].includes(status)) {
+            return res.status(400).json({
+                response: false,
+                message: "Status musi być jednym z: scheduled, live, finished, postponed, cancelled"
+            });
+        }
+
+        // Expect home_team, away_team to be teams.team_id; validate existence
+        const homeTeamCheck = await sql`
+            SELECT id FROM teams WHERE team_id = ${home_team}
+        `;
+        const awayTeamCheck = await sql`
+            SELECT id FROM teams WHERE team_id = ${away_team}
+        `;
+
+        if (homeTeamCheck.length === 0) {
+            return res.status(400).json({
+                response: false,
+                message: "Drużyna domowa nie istnieje"
+            });
+        }
+
+        if (awayTeamCheck.length === 0) {
+            return res.status(400).json({
+                response: false,
+                message: "Drużyna gości nie istnieje"
+            });
+        }
+
+        // Check if league exists
+        const leagueCheck = await sql`
+            SELECT id FROM leagues WHERE league_id = ${league_id.toString()}
+        `;
+
+        if (leagueCheck.length === 0) {
+            return res.status(400).json({
+                response: false,
+                message: "Liga o podanym ID nie istnieje"
+            });
+        }
+
+        // Check if API fixture ID is unique (if provided)
+        if (api_fixture_id) {
+            const existingFixture = await sql`
+                SELECT id FROM matches WHERE api_fixture_id = ${api_fixture_id}
+            `;
+
+            if (existingFixture.length > 0) {
+                return res.status(400).json({
+                    response: false,
+                    message: "Mecz o podanym API fixture ID już istnieje"
+                });
+            }
+        }
+
+        // Insert new match
+        const result = await sql`
+            INSERT INTO matches (
+                home_team, away_team, home_team_score, away_team_score,
+                match_current_time, league_id, status, stadium, match_date, match_time,
+                round, city, api_fixture_id
+            ) VALUES (
+                ${home_team}, ${away_team}, ${home_team_score}, ${away_team_score},
+                ${match_current_time || null}, ${league_id}, ${status}, ${stadium}, 
+                ${match_date}, ${match_time}, ${round || null}, ${city || null}, 
+                ${api_fixture_id || null}
+            ) RETURNING *
+        `;
+
+        return res.status(201).json({
+            response: true,
+            message: "Mecz został dodany pomyślnie",
+            data: result[0]
+        });
+
+    } catch (error) {
+        console.error('Error adding match:', error);
+        res.status(500).json({
+            response: false,
+            message: "Błąd serwera podczas dodawania meczu"
+        });
+    }
+}
+
+// Update match
+export async function updateMatch(req, res) {
+    try {
+        const { match_id } = req.params;
+        const updateData = req.body;
+
+        console.log("Update match request:", { match_id, updateData });
+
+        // Remove user_id from update data as it's not part of match fields
+        delete updateData.user_id;
+
+        if (Object.keys(updateData).length === 0) {
+            return res.status(400).json({
+                response: false,
+                message: "Brak danych do aktualizacji"
+            });
+        }
+
+        // Check if match exists
+        const existingMatch = await sql`
+            SELECT id FROM matches 
+            WHERE id = ${match_id}
+        `;
+
+        if (existingMatch.length === 0) {
+            return res.status(404).json({
+                response: false,
+                message: "Mecz nie istnieje"
+            });
+        }
+
+        // Validate status if provided
+        if (updateData.status && !['scheduled', 'live', 'finished', 'postponed', 'cancelled'].includes(updateData.status)) {
+            return res.status(400).json({
+                response: false,
+                message: "Status musi być jednym z: scheduled, live, finished, postponed, cancelled"
+            });
+        }
+
+        // Validate teams if provided
+        if (updateData.home_team && updateData.away_team && updateData.home_team === updateData.away_team) {
+            return res.status(400).json({
+                response: false,
+                message: "Drużyna domowa i gości muszą być różne"
+            });
+        }
+
+        // Check if teams exist if being updated
+        if (updateData.home_team) {
+            const homeTeamCheck = await sql`
+                SELECT id FROM teams WHERE id = ${updateData.home_team}
+            `;
+            if (homeTeamCheck.length === 0) {
+                return res.status(400).json({
+                    response: false,
+                    message: "Drużyna domowa nie istnieje"
+                });
+            }
+        }
+
+        if (updateData.away_team) {
+            const awayTeamCheck = await sql`
+                SELECT id FROM teams WHERE id = ${updateData.away_team}
+            `;
+            if (awayTeamCheck.length === 0) {
+                return res.status(400).json({
+                    response: false,
+                    message: "Drużyna gości nie istnieje"
+                });
+            }
+        }
+
+        // Build dynamic update query
+        const updateFields = [];
+        const updateValues = [];
+        
+        Object.keys(updateData).forEach(key => {
+            if (updateData[key] !== undefined) {
+                updateFields.push(key);
+                updateValues.push(updateData[key]);
+            }
+        });
+
+        // Add updated_at
+        updateFields.push('updated_at');
+        updateValues.push(new Date());
+
+        // Create SQL query dynamically
+        let query = 'UPDATE matches SET ';
+        const setParts = updateFields.map((field, index) => {
+            if (field === 'updated_at') {
+                return `${field} = NOW() + INTERVAL '2 hours'`;
+            }
+            return `${field} = $${index + 1}`;
+        });
+        query += setParts.join(', ');
+        query += ` WHERE id = $${updateFields.length + 1} RETURNING *`;
+
+        const result = await sql.unsafe(query, [...updateValues.slice(0, -1), match_id]);
+
+        return res.status(200).json({
+            response: true,
+            message: "Mecz został zaktualizowany pomyślnie",
+            data: result[0]
+        });
+
+    } catch (error) {
+        console.error('Error updating match:', error);
+        res.status(500).json({
+            response: false,
+            message: "Błąd serwera podczas aktualizacji meczu"
+        });
+    }
+}
+
+// Delete match
+export async function deleteMatch(req, res) {
+    try {
+        const { match_id } = req.params;
+
+        console.log("Delete match request:", { match_id });
+
+        const result = await sql`
+            DELETE FROM matches 
+            WHERE id = ${match_id}
+            RETURNING *
+        `;
+
+        if (result.length === 0) {
+            return res.status(404).json({
+                response: false,
+                message: "Mecz nie istnieje"
+            });
+        }
+
+        return res.status(200).json({
+            response: true,
+            message: "Mecz został usunięty pomyślnie",
+            data: result[0]
+        });
+
+    } catch (error) {
+        console.error('Error deleting match:', error);
+        res.status(500).json({
+            response: false,
+            message: "Błąd serwera podczas usuwania meczu"
+        });
+    }
+}
+
+// Get match by ID
+export async function getMatchById(req, res) {
+    try {
+        const { match_id } = req.params;
+
+        const match = await sql`
+            SELECT 
+                m.*,
+                ht.name as home_team_name,
+                ht.logo as home_team_logo,
+                ht.label as home_team_label,
+                at.name as away_team_name,
+                at.logo as away_team_logo,
+                at.label as away_team_label,
+                l.league_name,
+                l.league_country
+            FROM matches m
+            LEFT JOIN teams ht ON m.home_team = ht.team_id
+            LEFT JOIN teams at ON m.away_team = at.team_id
+            LEFT JOIN leagues l ON m.league_id = l.league_id::int
+            WHERE m.id = ${match_id}
+        `;
+
+        if (match.length === 0) {
+            return res.status(404).json({
+                response: false,
+                message: "Mecz nie istnieje"
+            });
+        }
+
+        res.status(200).json({
+            response: true,
+            data: match[0]
+        });
+    } catch (error) {
+        console.error('Error getting match by ID:', error);
+        res.status(500).json({
+            response: false,
+            message: "Błąd serwera podczas pobierania meczu"
+        });
+    }
+}
+
+// Add match from API response
+export async function addMatchFromApi(req, res) {
+    try {
+        const { fixture_data } = req.body;
+
+        console.log("Add match from API request:", req.body);
+
+        if (!fixture_data) {
+            return res.status(400).json({
+                response: false,
+                message: "Brak danych meczu z API"
+            });
+        }
+
+        const {
+            fixture,
+            league,
+            teams,
+            goals,
+            score
+        } = fixture_data;
+
+        // Check if match with this API fixture ID already exists
+        if (fixture.id) {
+            const existingMatch = await sql`
+                SELECT id FROM matches 
+                WHERE api_fixture_id = ${fixture.id}
+            `;
+
+            if (existingMatch.length > 0) {
+                return res.status(200).json({
+                    response: true,
+                    message: "Mecz już istnieje",
+                    data: { id: existingMatch[0].id, api_fixture_id: fixture.id }
+                });
+            }
+        }
+
+        // Get or create home team (by team_id)
+        let homeTeamId = String(teams.home.id);
+        const existingHomeTeam = await sql`
+            SELECT id FROM teams 
+            WHERE team_id = ${homeTeamId}
+        `;
+
+        if (existingHomeTeam.length === 0) {
+            // Create home team
+            const homeTeamSlug = teams.home.name.toLowerCase()
+                .replace(/[^a-z0-9\s-]/g, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-')
+                .trim('-');
+
+            // Ensure slug is unique
+            let finalHomeSlug = homeTeamSlug;
+            let counter = 1;
+            while (true) {
+                const slugCheck = await sql`
+                    SELECT id FROM teams 
+                    WHERE slug = ${finalHomeSlug}
+                `;
+                
+                if (slugCheck.length === 0) break;
+                
+                finalHomeSlug = `${homeTeamSlug}-${counter}`;
+                counter++;
+            }
+
+            await sql`
+                INSERT INTO teams (
+                    name, slug, logo, label, country, team_id
+                ) VALUES (
+                    ${teams.home.name}, ${finalHomeSlug}, ${teams.home.logo}, 
+                    ${teams.home.name}, 'Poland', ${homeTeamId}
+                )
+            `;
+        }
+
+        // Get or create away team (by team_id)
+        let awayTeamId = String(teams.away.id);
+        const existingAwayTeam = await sql`
+            SELECT id FROM teams 
+            WHERE team_id = ${awayTeamId}
+        `;
+
+        if (existingAwayTeam.length === 0) {
+            // Create away team
+            const awayTeamSlug = teams.away.name.toLowerCase()
+                .replace(/[^a-z0-9\s-]/g, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-')
+                .trim('-');
+
+            // Ensure slug is unique
+            let finalAwaySlug = awayTeamSlug;
+            let counter = 1;
+            while (true) {
+                const slugCheck = await sql`
+                    SELECT id FROM teams 
+                    WHERE slug = ${finalAwaySlug}
+                `;
+                
+                if (slugCheck.length === 0) break;
+                
+                finalAwaySlug = `${awayTeamSlug}-${counter}`;
+                counter++;
+            }
+
+            await sql`
+                INSERT INTO teams (
+                    name, slug, logo, label, country, team_id
+                ) VALUES (
+                    ${teams.away.name}, ${finalAwaySlug}, ${teams.away.logo}, 
+                    ${teams.away.name}, 'Poland', ${awayTeamId}
+                )
+            `;
+        }
+
+        // Parse match date and time
+        const matchDate = new Date(fixture.date);
+        const dateStr = matchDate.toISOString().split('T')[0];
+        const timeStr = matchDate.toTimeString().split(' ')[0].substring(0, 5);
+
+        // Map API status to our status
+        const statusMap = {
+            'Not Started': 'scheduled',
+            'In Play': 'live',
+            'Match Finished': 'finished',
+            'Postponed': 'postponed',
+            'Cancelled': 'cancelled'
+        };
+        const matchStatus = statusMap[fixture.status.long] || 'scheduled';
+
+        // Get scores - preserve null values if they are null in API response
+        const homeScore = goals.home === null ? null : (goals.home || 0);
+        const awayScore = goals.away === null ? null : (goals.away || 0);
+
+        // Check if league exists in api_leagues table
+        const leagueCheck = await sql`
+            SELECT id FROM leagues WHERE league_id = ${league.id}
+        `;
+
+        if (leagueCheck.length === 0) {
+            throw new Error(`League with ID ${league.id} not found in leagues table`);
+        }
+
+        // Insert new match (use team_id values)
+        const result = await sql`
+            INSERT INTO matches (
+                home_team, away_team, home_team_score, away_team_score,
+                league_id, status, stadium, match_date, match_time,
+                round, city, api_fixture_id
+            ) VALUES (
+                ${homeTeamId}, ${awayTeamId}, ${homeScore}, ${awayScore},
+                ${league.id}, ${matchStatus}, ${fixture.venue.name}, 
+                ${dateStr}, ${timeStr}, ${league.round || null}, 
+                ${fixture.venue.city || null}, ${fixture.id}
+            ) RETURNING *
+        `;
+
+        return res.status(201).json({
+            response: true,
+            message: "Mecz został dodany pomyślnie z API",
+            data: result[0]
+        });
+
+    } catch (error) {
+        console.error('Error adding match from API:', error);
+        res.status(500).json({
+            response: false,
+            message: "Błąd serwera podczas dodawania meczu z API"
+        });
+    }
+}
+
+// Get match by API fixture ID
+export async function getMatchByApiFixtureId(req, res) {
+    try {
+        const { api_fixture_id } = req.params;
+
+        const match = await sql`
+            SELECT 
+                m.*,
+                ht.name as home_team_name,
+                ht.logo as home_team_logo,
+                ht.label as home_team_label,
+                at.name as away_team_name,
+                at.logo as away_team_logo,
+                at.label as away_team_label,
+                l.league_name,
+                l.league_country
+            FROM matches m
+            LEFT JOIN teams ht ON m.home_team = ht.team_id
+            LEFT JOIN teams at ON m.away_team = at.team_id
+            LEFT JOIN leagues l ON m.league_id = l.league_id::int
+            WHERE m.api_fixture_id = ${api_fixture_id}
+        `;
+
+        if (match.length === 0) {
+            return res.status(404).json({
+                response: false,
+                message: "Mecz o podanym API fixture ID nie istnieje"
+            });
+        }
+
+        res.status(200).json({
+            response: true,
+            data: match[0]
+        });
+    } catch (error) {
+        console.error('Error getting match by API fixture ID:', error);
+        res.status(500).json({
+            response: false,
+            message: "Błąd serwera podczas pobierania meczu"
+        });
+    }
+}

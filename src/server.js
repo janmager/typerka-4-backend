@@ -7,6 +7,12 @@ import { wakeupJob } from "./config/cron.js";
 import { initializeDatabase } from "./config/db.js";
 import usersRoute from "./routes/usersRoute.js";
 import mailingRoute from "./routes/mailingRoute.js";
+import adminRoute from "./routes/adminRoute.js";
+import adminTournamentsRoute from "./routes/adminTournamentsRoute.js";
+import adminTeamsRoute from "./routes/adminTeamsRoute.js";
+import adminMatchesRoute from "./routes/adminMatchesRoute.js";
+import apiIntegrationRoute from "./routes/apiIntegrationRoute.js";
+import tournamentsRoute from "./routes/tournamentsRoute.js";
 
 dotenv.config();
 
@@ -35,6 +41,12 @@ initializeDatabase().catch(console.error);
 // Routes
 app.use("/api/users", usersRoute);
 app.use("/api/mailing", mailingRoute);
+app.use("/api/admin", adminRoute);
+app.use("/api/admin", adminTournamentsRoute);
+app.use("/api/admin", adminTeamsRoute);
+app.use("/api/admin", adminMatchesRoute);
+app.use("/api/admin", apiIntegrationRoute);
+app.use("/api/tournaments", tournamentsRoute);
 
 app.get("/api/health", (req, res) => {
     res.send("API is working fine.");

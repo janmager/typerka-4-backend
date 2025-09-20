@@ -1,0 +1,21 @@
+import express from "express";
+import { checkAdminUser, updateLeagueStatus, addLeagueRecord, getAllLeagues, refreshLeague } from "../controllers/adminController.js";
+
+const router = express.Router();
+
+// Middleware to check admin permissions for all admin routes
+router.use(checkAdminUser);
+
+// POST /api/admin/update-league-status - Update league status, add/remove leagues, set update_times
+router.post("/update-league-status", updateLeagueStatus);
+
+// POST /api/admin/add-league - Add new league record
+router.post("/add-league", addLeagueRecord);
+
+// GET /api/admin/leagues - Get all leagues (admin only)
+router.get("/leagues", getAllLeagues);
+
+// POST /api/admin/leagues/update - Refresh league data (re-fetch teams and matches)
+router.post("/leagues/update", refreshLeague);
+
+export default router;
