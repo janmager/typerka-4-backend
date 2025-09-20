@@ -73,7 +73,7 @@ export async function initializeDatabase() {
                 away_team VARCHAR(255) NOT NULL,
                 home_team_score INT NOT NULL DEFAULT 0,
                 away_team_score INT NOT NULL DEFAULT 0,
-                match_current_time TIME,
+                match_current_time INT,
                 league_id INT NOT NULL,
                 status VARCHAR(255) NOT NULL DEFAULT 'scheduled',
                 stadium VARCHAR(255) NOT NULL,
@@ -81,6 +81,7 @@ export async function initializeDatabase() {
                 stadium_country VARCHAR(255),
                 match_date DATE NOT NULL,
                 match_time TIME NOT NULL,
+                round TEXT,
                 actual_home_score INT,
                 actual_away_score INT,
                 half_time_home_score INT,
@@ -189,9 +190,8 @@ export async function initializeDatabase() {
             await sql`
                 DO $$ 
                 BEGIN 
-                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'matches_status_check') THEN
-                        ALTER TABLE matches ADD CONSTRAINT matches_status_check 
-                        CHECK (status IN ('scheduled', 'live', 'finished', 'postponed', 'cancelled'));
+                    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'matches_status_check') THEN
+                        ALTER TABLE matches DROP CONSTRAINT matches_status_check;
                     END IF;
                 END $$;
             `;
@@ -395,6 +395,20 @@ export async function initializeDatabase() {
             await sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS goals_away INT`;
             await sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS full_time_home_score INT`;
             await sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS full_time_away_score INT`;
+            await sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS round TEXT`;
+            await sql`
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='matches' AND column_name='match_current_time' AND data_type='time without time zone'
+                    ) THEN
+                        ALTER TABLE matches
+                        ALTER COLUMN match_current_time TYPE INT
+                        USING CASE WHEN match_current_time IS NULL THEN NULL ELSE (EXTRACT(EPOCH FROM match_current_time)::int)/60 END;
+                    END IF;
+                END $$;
+            `;
         } catch (alterError) {}
         
     } catch (error) {

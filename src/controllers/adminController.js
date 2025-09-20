@@ -33,33 +33,22 @@ async function fetchTeamsForLeague(leagueId, season = new Date().getFullYear()) 
 async function fetchFixturesForLeague(leagueId, season = new Date().getFullYear()) {
     try {
         const apiKey = process.env.API_FOOTBALL_KEY;
-        const baseUrl = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=${season}&timezone=Europe/Warsaw`;
-        let all = [];
-        let page = 1;
-        let total = 1;
-        do {
-            const url = `${baseUrl}&page=${page}`;
-            console.log(`Fetching fixtures page ${page}: ${url}`);
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'X-RapidAPI-Key': apiKey,
-                    'X-RapidAPI-Host': 'v3.football.api-sports.io'
-                }
-            });
-            if (!response.ok) {
-                console.error(`API-Football fixtures request failed with status: ${response.status}`);
-                break;
+        const url = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=${season}&timezone=Europe/Warsaw`;
+        console.log(`Fetching fixtures (single request, full season) for league ${leagueId}, season ${season}: ${url}`);
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'X-RapidAPI-Key': apiKey,
+                'X-RapidAPI-Host': 'v3.football.api-sports.io'
             }
-            const data = await response.json();
-            const items = Array.isArray(data.response) ? data.response : [];
-            all = all.concat(items);
-            const paging = data.paging || { current: page, total: page };
-            page = Number(paging.current || page) + 1;
-            total = Number(paging.total || page - 1);
-        } while (page <= total && page < 1000);
-        console.log(`Fetched ${all.length} fixtures for league ${leagueId}, season ${season}`);
-        return all;
+        });
+        if (!response.ok) {
+            console.error(`API-Football fixtures request failed with status: ${response.status}`);
+            return [];
+        }
+        const data = await response.json();
+        return Array.isArray(data.response) ? data.response : [];
     } catch (error) {
         console.error('Error fetching fixtures:', error);
         return [];
@@ -181,12 +170,12 @@ async function storeMatches(fixtures) {
             
             if (fixture.fixture?.date) {
                 try {
-                    const dateObj = new Date(fixture.fixture.date);
-                    matchDate = dateObj.toISOString().split('T')[0];
-                    matchTime = dateObj.toTimeString().split(' ')[0];
+                    const dt = getDatePartsInTZ(fixture.fixture.date, 'Europe/Warsaw');
+                    matchDate = dt.date; // YYYY-MM-DD
+                    matchTime = dt.time; // HH:MM:SS
                 } catch (dateError) {
                     console.log(`Error parsing date for match ${matchId}:`, dateError);
-                    matchDate = new Date().toISOString().split('T')[0]; // fallback to today
+                    matchDate = new Date().toISOString().split('T')[0]; // fallback to today (UTC)
                     matchTime = '00:00:00'; // fallback time
                 }
             }
@@ -196,17 +185,12 @@ async function storeMatches(fixtures) {
                 SELECT id FROM matches WHERE match_id = ${matchId} LIMIT 1
             `;
 
-            // Determine match status based on short code
-            const statusShort = fixture.fixture?.status?.short ? String(fixture.fixture.status.short).toUpperCase() : 'NS';
-            let status = 'scheduled';
-            if (['FT','AET'].includes(statusShort)) status = 'finished';
-            else if (['1H','2H','HT','LIVE','ET','PEN'].includes(statusShort)) status = 'live';
-            else if (['PST','SUSP','INT'].includes(statusShort)) status = 'postponed';
-            else if (['CANC','ABD','AWD','WO'].includes(statusShort)) status = 'cancelled';
+            // Determine match status 1:1 from API short code
+            const status = fixture.fixture?.status?.short ? String(fixture.fixture.status.short) : 'NS';
 
-            // Extract match current time (elapsed time)
-            const matchCurrentTime = fixture.fixture?.status?.elapsed ? 
-                `00:${fixture.fixture.status.elapsed.toString().padStart(2, '0')}:00` : null;
+            // Extract match current time as integer minutes
+            const elapsedRaw = fixture.fixture?.status?.elapsed;
+            const matchCurrentTime = (typeof elapsedRaw === 'number' && Number.isFinite(elapsedRaw)) ? elapsedRaw : null;
 
             // Extract venue information
             const stadium = fixture.fixture?.venue?.name || 'Unknown Stadium';
@@ -224,7 +208,7 @@ async function storeMatches(fixtures) {
             const fullTimeAwayScore = fixture.score?.fulltime?.away !== undefined && fixture.score?.fulltime?.away !== null ? fixture.score.fulltime.away : null;
 
             if (existingMatch.length === 0) {
-                // Insert new match
+                // Insert new match (fields per mapping)
                 const result = await sql`
                     INSERT INTO matches (
                         match_id, home_team, away_team, home_team_score, away_team_score,
@@ -232,16 +216,18 @@ async function storeMatches(fixtures) {
                         stadium_city, stadium_country,
                         actual_home_score, actual_away_score, goals_home, goals_away,
                         half_time_home_score, half_time_away_score,
-                        full_time_home_score, full_time_away_score
+                        full_time_home_score, full_time_away_score,
+                        round
                     ) VALUES (
                         ${matchId}, ${homeTeamId}, ${awayTeamId}, 
-                        ${goalsHome || 0}, ${goalsAway || 0},
+                        ${fullTimeHomeScore ?? 0}, ${fullTimeAwayScore ?? 0},
                         ${matchCurrentTime}, ${parseInt(leagueId)}, ${status}, 
                         ${stadium}, ${matchDate}, ${matchTime},
                         ${stadiumCity}, ${stadiumCountry},
                         ${goalsHome}, ${goalsAway}, ${goalsHome}, ${goalsAway},
                         ${halfTimeHomeScore}, ${halfTimeAwayScore},
-                        ${fullTimeHomeScore}, ${fullTimeAwayScore}
+                        ${fullTimeHomeScore}, ${fullTimeAwayScore},
+                        ${fixture.league?.round || fixture?.league?.round || null}
                     ) RETURNING *
                 `;
                 storedMatches.push(result[0]);
@@ -254,8 +240,8 @@ async function storeMatches(fixtures) {
                         match_id = ${matchId},
                         home_team = ${homeTeamId},
                         away_team = ${awayTeamId},
-                        home_team_score = ${goalsHome || 0},
-                        away_team_score = ${goalsAway || 0},
+                        home_team_score = ${fullTimeHomeScore ?? 0},
+                        away_team_score = ${fullTimeAwayScore ?? 0},
                         match_current_time = ${matchCurrentTime},
                         status = ${status},
                         stadium = ${stadium},
@@ -271,6 +257,7 @@ async function storeMatches(fixtures) {
                         half_time_away_score = ${halfTimeAwayScore},
                         full_time_home_score = ${fullTimeHomeScore},
                         full_time_away_score = ${fullTimeAwayScore},
+                        round = ${fixture.league?.round || fixture?.league?.round || null},
                         updated_at = NOW() + INTERVAL '2 hours'
                     WHERE id = ${existingId}
                     RETURNING *
@@ -279,6 +266,7 @@ async function storeMatches(fixtures) {
                 console.log(`Updated match: ${fixture.teams?.home?.name || 'Unknown'} vs ${fixture.teams?.away?.name || 'Unknown'} (ID: ${matchId})`);
             }
         } catch (error) {
+            console.log('fixture', fixture);
             console.error(`Error storing/updating match ${fixture.fixture?.id || 'unknown'}:`, error);
             // Don't throw error - continue processing other matches
             continue;
@@ -380,6 +368,23 @@ async function verifyLeagueExists(leagueId, season = new Date().getFullYear()) {
         };
     }
     return result;
+}
+
+// Helper: format ISO date into YYYY-MM-DD and HH:MM:SS in a given timezone
+function getDatePartsInTZ(isoString, timeZone = 'Europe/Warsaw') {
+    const d = new Date(isoString);
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+    }).formatToParts(d);
+    const y = parts.find(p => p.type === 'year')?.value || '1970';
+    const m = parts.find(p => p.type === 'month')?.value || '01';
+    const day = parts.find(p => p.type === 'day')?.value || '01';
+    const hh = parts.find(p => p.type === 'hour')?.value || '00';
+    const mm = parts.find(p => p.type === 'minute')?.value || '00';
+    const ss = parts.find(p => p.type === 'second')?.value || '00';
+    return { date: `${y}-${m}-${day}`, time: `${hh}:${mm}:${ss}` };
 }
 
 // Check if user is admin
@@ -761,7 +766,6 @@ export async function addLeagueRecord(req, res) {
                 teamsError = error.message;
             }
         }
-
         // Try to store matches
         if (leagueData.fixtures && leagueData.fixtures.length > 0) {
             try {
