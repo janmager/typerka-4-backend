@@ -18,8 +18,8 @@ CREATE TABLE IF NOT EXISTS teams (
     venue_capacity INT,
     venue_surface VARCHAR(100),
     venue_image TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '2 hours',
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '2 hours'
 );
 
 -- Create matches table
@@ -58,8 +58,8 @@ CREATE TABLE IF NOT EXISTS matches (
     score_extratime_away INT,
     score_penalty_home INT,
     score_penalty_away INT,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '2 hours',
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '2 hours'
 );
 
 -- Create indexes for better performance
@@ -79,7 +79,7 @@ CREATE INDEX IF NOT EXISTS matches_status_idx ON matches(status_short);
 CREATE OR REPLACE FUNCTION update_teams_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
+    NEW.updated_at = CURRENT_TIMESTAMP + INTERVAL '2 hours';
     RETURN NEW;
 END;
 $$ language 'plpgsql';
@@ -87,7 +87,7 @@ $$ language 'plpgsql';
 CREATE OR REPLACE FUNCTION update_matches_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
+    NEW.updated_at = CURRENT_TIMESTAMP + INTERVAL '2 hours';
     RETURN NEW;
 END;
 $$ language 'plpgsql';

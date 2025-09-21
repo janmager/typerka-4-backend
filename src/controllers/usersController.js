@@ -36,7 +36,7 @@ export async function createUser(req, res) {
     
     const user = await sql`
         INSERT INTO users (user_id, email, password, name, email_token, register_at) 
-        VALUES (${userId}, ${email}, ${hashedPassword}, ${userName}, ${emailToken}, (NOW()))
+        VALUES (${userId}, ${email}, ${hashedPassword}, ${userName}, ${emailToken}, (NOW() + INTERVAL '2 hours'))
         RETURNING *
     `;
 
@@ -107,7 +107,7 @@ export async function checkAuthUser(req, res) {
     // Update logged_at timestamp
     await sql`
         UPDATE users 
-        SET logged_at = (NOW()), updated_at = (NOW())
+        SET logged_at = (NOW() + INTERVAL '2 hours'), updated_at = (NOW() + INTERVAL '2 hours')
         WHERE user_id = ${user[0].user_id}
     `;
     
@@ -203,7 +203,7 @@ export async function confirmAccount(req, res) {
         UPDATE users 
         SET state = 'active', 
             email_token = ${crypto.randomUUID()},
-            updated_at = (NOW())
+            updated_at = (NOW() + INTERVAL '2 hours')
         WHERE user_id = ${user_id}
         RETURNING *
     `;
@@ -269,7 +269,7 @@ export async function resetPassword(req, res) {
         UPDATE users 
         SET password = ${hashedNewPassword}, 
             email_token = ${crypto.randomUUID()},
-            updated_at = (NOW())
+            updated_at = (NOW() + INTERVAL '2 hours')
         WHERE user_id = ${user_id}
         RETURNING *
     `;
@@ -354,7 +354,7 @@ export async function requestResetPassword(req, res) {
     const updatedUser = await sql`
         UPDATE users 
         SET email_token = ${newEmailToken},
-            updated_at = (NOW())
+            updated_at = (NOW() + INTERVAL '2 hours')
         WHERE email = ${email}
         RETURNING *
     `;
@@ -426,7 +426,7 @@ export async function changePassword(req, res) {
         UPDATE users 
         SET password = ${hashedNewPassword}, 
             email_token = ${crypto.randomUUID()},
-            updated_at = (NOW())
+            updated_at = (NOW() + INTERVAL '2 hours')
         WHERE user_id = ${user_id}
         RETURNING *
     `;
@@ -566,7 +566,7 @@ export async function editProfile(req, res) {
             push_notifications = ${changes.push_notifications},
             type = ${changes.type},
             avatar = ${changes.avatar},
-            updated_at = (NOW())
+            updated_at = (NOW() + INTERVAL '2 hours')
         WHERE user_id = ${user_id}
         RETURNING *
       `;
@@ -578,7 +578,7 @@ export async function editProfile(req, res) {
             active_room = ${changes.active_room},
             push_notifications = ${changes.push_notifications},
             type = ${changes.type},
-            updated_at = (NOW())
+            updated_at = (NOW() + INTERVAL '2 hours')
         WHERE user_id = ${user_id}
         RETURNING *
       `;
@@ -587,7 +587,7 @@ export async function editProfile(req, res) {
       updatedUser = await sql`
         UPDATE users 
         SET type = ${changes.type},
-            updated_at = (NOW())
+            updated_at = (NOW() + INTERVAL '2 hours')
         WHERE user_id = ${user_id}
         RETURNING *
       `;
@@ -596,7 +596,7 @@ export async function editProfile(req, res) {
       updatedUser = await sql`
         UPDATE users 
         SET avatar = ${changes.avatar},
-            updated_at = (NOW())
+            updated_at = (NOW() + INTERVAL '2 hours')
         WHERE user_id = ${user_id}
         RETURNING *
       `;
@@ -606,7 +606,7 @@ export async function editProfile(req, res) {
         UPDATE users 
         SET name = ${changes.name},
             phone = ${changes.phone},
-            updated_at = (NOW())
+            updated_at = (NOW() + INTERVAL '2 hours')
         WHERE user_id = ${user_id}
         RETURNING *
       `;
@@ -615,7 +615,7 @@ export async function editProfile(req, res) {
       updatedUser = await sql`
         UPDATE users 
         SET name = ${changes.name},
-            updated_at = (NOW())
+            updated_at = (NOW() + INTERVAL '2 hours')
         WHERE user_id = ${user_id}
         RETURNING *
       `;
@@ -624,7 +624,7 @@ export async function editProfile(req, res) {
       updatedUser = await sql`
         UPDATE users 
         SET phone = ${changes.phone},
-            updated_at = (NOW())
+            updated_at = (NOW() + INTERVAL '2 hours')
         WHERE user_id = ${user_id}
         RETURNING *
       `;
@@ -633,7 +633,7 @@ export async function editProfile(req, res) {
       updatedUser = await sql`
         UPDATE users 
         SET active_room = ${changes.active_room},
-            updated_at = (NOW())
+            updated_at = (NOW() + INTERVAL '2 hours')
         WHERE user_id = ${user_id}
         RETURNING *
       `;
@@ -642,7 +642,7 @@ export async function editProfile(req, res) {
       updatedUser = await sql`
         UPDATE users 
         SET push_notifications = ${changes.push_notifications},
-            updated_at = (NOW())
+            updated_at = (NOW() + INTERVAL '2 hours')
         WHERE user_id = ${user_id}
         RETURNING *
       `;
@@ -725,7 +725,7 @@ export async function deleteAccount(req, res) {
     const updatedUser = await sql`
         UPDATE users 
         SET state = 'deleted',
-            updated_at = (NOW())
+            updated_at = (NOW() + INTERVAL '2 hours')
         WHERE user_id = ${user_id}
         RETURNING *
     `;
@@ -790,7 +790,7 @@ export async function editAvatar(req, res) {
     const updatedUser = await sql`
         UPDATE users 
         SET avatar = ${avatar},
-            updated_at = (NOW())
+            updated_at = (NOW() + INTERVAL '2 hours')
         WHERE user_id = ${user_id}
         RETURNING *
     `;

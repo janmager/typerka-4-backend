@@ -162,7 +162,7 @@ export async function updateTeam(req, res) {
         let query = 'UPDATE teams SET ';
         const setParts = updateFields.map((field, index) => {
             if (field === 'updated_at') {
-                return `${field} = NOW()`;
+                return `${field} = NOW() + INTERVAL '2 hours'`;
             }
             return `${field} = $${index + 1}`;
         });

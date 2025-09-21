@@ -127,7 +127,7 @@ export async function joinTournament(req, res) {
         try {
             await sql`
                 UPDATE users
-                SET active_tournament = ${tournament_id}, updated_at = NOW()
+                SET active_tournament = ${tournament_id}, updated_at = NOW() + INTERVAL '2 hours'
                 WHERE user_id = ${user_id}
             `;
         } catch (e) {}
@@ -245,7 +245,7 @@ export async function setActiveTournament(req, res) {
         const joined = await sql`SELECT 1 FROM tournaments_joins WHERE tournament_id = ${tournament_id} AND user_id = ${user_id} LIMIT 1`;
         if (joined.length === 0) return res.status(403).json({ response: false, message: 'Nie jesteś uczestnikiem tego turnieju' });
 
-        await sql`UPDATE users SET active_tournament = ${tournament_id}, updated_at = NOW() WHERE user_id = ${user_id}`;
+        await sql`UPDATE users SET active_tournament = ${tournament_id}, updated_at = NOW() + INTERVAL '2 hours' WHERE user_id = ${user_id}`;
         // addActivityInternal(user_id, {
         //     icon: '🎯',
         //     type: 'active_tournament_change',
@@ -519,7 +519,7 @@ export async function updateTournament(req, res) {
         if (updateData.status !== undefined) {
             await sql`
                 UPDATE tournaments
-                SET status = ${updateData.status}, updated_at = NOW()
+                SET status = ${updateData.status}, updated_at = NOW() + INTERVAL '2 hours'
                 WHERE id = ${tournament_id}
             `;
             // Remove status from dynamic set
@@ -534,7 +534,7 @@ export async function updateTournament(req, res) {
         if (updateData.update_times !== undefined) {
             await sql`
                 UPDATE tournaments
-                SET update_times = ${updateData.update_times}, updated_at = NOW()
+                SET update_times = ${updateData.update_times}, updated_at = NOW() + INTERVAL '2 hours'
                 WHERE id = ${tournament_id}
             `;
             const idxUT = updateFields.indexOf('update_times');
@@ -564,7 +564,7 @@ export async function updateTournament(req, res) {
             paramIndex += 1;
         }
         // Always update updated_at using server time
-        setParts.push(`updated_at = NOW()`);
+        setParts.push(`updated_at = NOW() + INTERVAL '2 hours'`);
         query += setParts.join(', ');
         // WHERE placeholder index should be the next param index
         query += ` WHERE id = $${paramIndex} RETURNING *`;
@@ -669,7 +669,7 @@ export async function updateTournamentJoinStatusAdmin(req, res) {
         }
         const updated = await sql`
             UPDATE tournaments_joins
-            SET status = ${status}, updated_at = (NOW())
+            SET status = ${status}, updated_at = (NOW() + INTERVAL '2 hours')
             WHERE id = ${join_id} AND tournament_id = ${tournament_id}
             RETURNING *
         `;

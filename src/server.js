@@ -6,8 +6,9 @@ import rateLimiter from "./middleware/rateLimiter.js";
 import { wakeupJob } from "./config/cron.js";
 import { initializeDatabase } from "./config/db.js";
 
-// Set timezone to Europe/Warsaw for consistent behavior
-process.env.TZ = 'Europe/Warsaw';
+// Set timezone to UTC for production server compatibility
+// The server runs in GMT+0, so we need to handle timezone conversion in the application
+process.env.TZ = 'UTC';
 import usersRoute from "./routes/usersRoute.js";
 import mailingRoute from "./routes/mailingRoute.js";
 import adminRoute from "./routes/adminRoute.js";

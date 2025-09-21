@@ -14,8 +14,8 @@ CREATE TABLE teams (
     logo VARCHAR(255) NOT NULL,
     label VARCHAR(255) NOT NULL,
     country VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '2 hours',
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '2 hours'
 );
 
 -- Create custom matches table
@@ -31,8 +31,8 @@ CREATE TABLE matches (
     stadium VARCHAR(255) NOT NULL,
     match_date DATE NOT NULL,
     match_time TIME NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '2 hours',
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '2 hours'
 );
 
 -- Recreate tournaments table with proper structure
@@ -52,8 +52,8 @@ CREATE TABLE tournaments (
     entry_fee INT NOT NULL DEFAULT 0,
     prize_pool INT NOT NULL DEFAULT 0,
     created_by VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '2 hours',
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '2 hours',
     
     -- Add constraints
     CONSTRAINT tournaments_status_check CHECK (status IN ('inactive', 'open', 'closed', 'finished')),
@@ -84,7 +84,7 @@ CREATE INDEX IF NOT EXISTS tournaments_slug_idx ON tournaments(slug);
 CREATE OR REPLACE FUNCTION update_teams_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
+    NEW.updated_at = CURRENT_TIMESTAMP + INTERVAL '2 hours';
     RETURN NEW;
 END;
 $$ language 'plpgsql';
@@ -92,7 +92,7 @@ $$ language 'plpgsql';
 CREATE OR REPLACE FUNCTION update_matches_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
+    NEW.updated_at = CURRENT_TIMESTAMP + INTERVAL '2 hours';
     RETURN NEW;
 END;
 $$ language 'plpgsql';
@@ -100,7 +100,7 @@ $$ language 'plpgsql';
 CREATE OR REPLACE FUNCTION update_tournaments_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
+    NEW.updated_at = CURRENT_TIMESTAMP + INTERVAL '2 hours';
     RETURN NEW;
 END;
 $$ language 'plpgsql';
