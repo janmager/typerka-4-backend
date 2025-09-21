@@ -1,6 +1,19 @@
 import { sql } from "../config/db.js";
 import fetch from 'node-fetch';
 
+// Helper function to log API calls to api_football_logs table
+async function logApiCall(description, url) {
+    try {
+        await sql`
+            INSERT INTO api_football_logs (description, url, created_at)
+            VALUES (${description}, ${url}, NOW() + INTERVAL '2 hours')
+        `;
+    } catch (error) {
+        console.error('Error logging API call:', error);
+        // Don't throw error here to avoid breaking the main functionality
+    }
+}
+
 // Fetch fixtures from API Sports and process them
 export async function fetchAndProcessFixtures(req, res) {
     try {
@@ -19,12 +32,16 @@ export async function fetchAndProcessFixtures(req, res) {
         // Build API URL with parameters
         let apiUrl = `https://api-football-v1.p.rapidapi.com/v3/fixtures?league=${league_id}&season=${season}`;
         
-        if (from_date) {
-            apiUrl += `&from=${from_date}`;
-        }
-        if (to_date) {
-            apiUrl += `&to=${to_date}`;
-        }
+        // if (from_date) {
+        //     apiUrl += `&from=${from_date}`;
+        // }
+        // if (to_date) {
+        //     apiUrl += `&to=${to_date}`;
+        // }
+
+        // Log the API call
+        const logDescription = `Fetch fixtures - League: ${league_id}, Season: ${season}${from_date ? `, From: ${from_date}` : ''}${to_date ? `, To: ${to_date}` : ''}`;
+        await logApiCall(logDescription, apiUrl);
 
         // Fetch data from API Sports
         const response = await fetch(apiUrl, {
@@ -125,6 +142,12 @@ export async function processApiFixtures(req, res) {
         const { fixtures_response } = req.body;
 
         console.log("Processing API fixtures:", req.body);
+
+        // Log the API call processing
+        const fixtureCount = fixtures_response?.response?.length || 0;
+        const logDescription = `Process API fixtures - ${fixtureCount} fixtures to process`;
+        const logUrl = `POST /api/admin/api/process-fixtures`;
+        await logApiCall(logDescription, logUrl);
 
         if (!fixtures_response || !fixtures_response.response || !Array.isArray(fixtures_response.response)) {
             return res.status(400).json({
@@ -339,6 +362,11 @@ export async function getTeamByApiId(req, res) {
     try {
         const { api_team_id } = req.params;
 
+        // Log the API call
+        const logDescription = `Get team by API ID - Team ID: ${api_team_id}`;
+        const logUrl = `GET /api/admin/api/teams/${api_team_id}`;
+        await logApiCall(logDescription, logUrl);
+
         const team = await sql`
             SELECT * FROM teams 
             WHERE api_team_id = ${api_team_id}
@@ -368,6 +396,11 @@ export async function getTeamByApiId(req, res) {
 export async function getMatchByApiFixtureId(req, res) {
     try {
         const { api_fixture_id } = req.params;
+
+        // Log the API call
+        const logDescription = `Get match by API fixture ID - Fixture ID: ${api_fixture_id}`;
+        const logUrl = `GET /api/admin/api/matches/${api_fixture_id}`;
+        await logApiCall(logDescription, logUrl);
 
         const match = await sql`
             SELECT 

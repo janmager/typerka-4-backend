@@ -1,5 +1,18 @@
 import { sql } from "../config/db.js";
 
+// Helper function to log API calls to api_football_logs table
+async function logApiCall(description, url) {
+    try {
+        await sql`
+            INSERT INTO api_football_logs (description, url, created_at)
+            VALUES (${description}, ${url}, NOW() + INTERVAL '2 hours')
+        `;
+    } catch (error) {
+        console.error('Error logging API call:', error);
+        // Don't throw error here to avoid breaking the main functionality
+    }
+}
+
 // Fetch teams for a specific league and season
 async function fetchTeamsForLeague(leagueId, season = new Date().getFullYear()) {
     try {
@@ -7,6 +20,9 @@ async function fetchTeamsForLeague(leagueId, season = new Date().getFullYear()) 
         const teamsUrl = `https://v3.football.api-sports.io/teams?league=${leagueId}&season=${season}`;
         
         console.log(`Fetching teams for league ${leagueId}, season ${season}...`);
+        
+        // Log the API call
+        await logApiCall(`Fetch teams - League: ${leagueId}, Season: ${season}`, teamsUrl);
         
         const response = await fetch(teamsUrl, {
             method: 'GET',
@@ -35,6 +51,9 @@ async function fetchFixturesForLeague(leagueId, season = new Date().getFullYear(
         const apiKey = process.env.API_FOOTBALL_KEY;
         const url = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=${season}&timezone=Europe/Warsaw`;
         console.log(`Fetching fixtures (single request, full season) for league ${leagueId}, season ${season}: ${url}`);
+
+        // Log the API call
+        await logApiCall(`Fetch fixtures - League: ${leagueId}, Season: ${season}`, url);
 
         const response = await fetch(url, {
             method: 'GET',
@@ -291,6 +310,9 @@ async function fetchLeagueDetails(leagueId, season = new Date().getFullYear()) {
         
         console.log(`Fetching league details for ${leagueId}...`);
         
+        // Log the API call
+        await logApiCall(`Fetch league details - League ID: ${leagueId}`, leaguesUrl);
+        
         const leaguesResponse = await fetch(leaguesUrl, {
             method: 'GET',
             headers: {
@@ -390,7 +412,8 @@ function getDatePartsInTZ(isoString, timeZone = 'Europe/Warsaw') {
 // Check if user is admin
 export async function checkAdminUser(req, res, next) {
     try {
-        // For GET requests, check query parameters; for POST requests, check body
+        console.log('DEBUG: checkAdminUser called for method:', req.method);
+        // For GET requests, check query parameters; for POST/PUT requests, check body
         const user_id = req.method === 'GET' ? req.query.user_id : req.body.user_id;
         
         if (!user_id) {
@@ -849,17 +872,28 @@ export async function refreshLeague(req, res) {
         // Enforce 15-minute cooldown from last updated_at
         if (existingLeague.length > 0 && existingLeague[0].updated_at) {
             try {
-                const lastUpdated = new Date(existingLeague[0].updated_at);
-                const nextAllowed = new Date(lastUpdated.getTime() + 15 * 60 * 1000);
-                const now = new Date();
-                if (now < nextAllowed) {
+                // Check cooldown using database time comparison for accuracy
+                const cooldownCheck = await sql`
+                    SELECT 
+                        updated_at,
+                        (updated_at + INTERVAL '15 minutes') as next_allowed,
+                        NOW() + INTERVAL '2 hours' as current_time,
+                        (NOW() + INTERVAL '2 hours') < (updated_at + INTERVAL '15 minutes') as is_cooldown_active
+                    FROM leagues 
+                    WHERE league_id = ${league_id}
+                `;
+                
+                if (cooldownCheck.length > 0 && cooldownCheck[0].is_cooldown_active) {
+                    const nextAllowed = new Date(cooldownCheck[0].next_allowed);
                     return res.status(429).json({
                         response: false,
                         message: `Odświeżanie dostępne o ${nextAllowed.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Warsaw' })}`,
-                        nextAllowed: nextAllowed.toISOString()
+                        nextAllowed: nextAllowed.toISOString(),
+                        lastUpdated: cooldownCheck[0].updated_at
                     });
                 }
             } catch (tErr) {
+                console.error('Error checking cooldown:', tErr);
                 // If parsing fails, continue without cooldown
             }
         }
@@ -959,6 +993,78 @@ export async function getAllLeagues(req, res) {
         res.status(500).json({
             response: false,
             message: "Błąd serwera podczas pobierania lig"
+        });
+    }
+}
+
+// Get API football logs (admin only)
+export async function getApiFootballLogs(req, res) {
+    try {
+        const { page = 1, limit = 50 } = req.query;
+        const offset = (page - 1) * limit;
+
+        // Get total count
+        const totalResult = await sql`
+            SELECT COUNT(*) as total FROM api_football_logs
+        `;
+        const total = parseInt(totalResult[0].total);
+
+        // Get all logs to count today's logs based on actual created_at dates
+        const allLogsResult = await sql`
+            SELECT created_at FROM api_football_logs
+            ORDER BY created_at DESC
+        `;
+        
+        // Count logs from today using JavaScript date comparison for accuracy
+        const today = new Date();
+        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+        
+        const todayCount = allLogsResult.filter(log => {
+            const logDate = new Date(log.created_at);
+            return logDate >= todayStart && logDate < todayEnd;
+        }).length;
+
+        // Group logs by day for additional statistics
+        const logsByDay = {};
+        allLogsResult.forEach(log => {
+            const logDate = new Date(log.created_at);
+            const dateKey = logDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+            
+            if (!logsByDay[dateKey]) {
+                logsByDay[dateKey] = 0;
+            }
+            logsByDay[dateKey]++;
+        });
+
+        // Get logs with pagination, sorted by created_at DESC
+        const logs = await sql`
+            SELECT id, description, created_at, url
+            FROM api_football_logs
+            ORDER BY created_at DESC
+            LIMIT ${limit} OFFSET ${offset}
+        `;
+
+        return res.status(200).json({
+            response: true,
+            data: {
+                logs,
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total,
+                    totalPages: Math.ceil(total / limit)
+                },
+                todayCount,
+                logsByDay
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching API football logs:', error);
+        res.status(500).json({
+            response: false,
+            message: "Błąd serwera podczas pobierania logów API"
         });
     }
 }
