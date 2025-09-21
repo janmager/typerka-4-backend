@@ -356,7 +356,6 @@ export async function initializeDatabase() {
         // Add new columns to existing teams table if they don't exist
         try {
             await sql`ALTER TABLE teams ADD COLUMN IF NOT EXISTS team_id VARCHAR(255)`;
-            console.log('Added team_id column to teams table (if not exists)');
         } catch (alterError) {}
 
         // Activities table
