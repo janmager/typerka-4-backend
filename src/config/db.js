@@ -24,8 +24,8 @@ export async function initializeDatabase() {
                 type TEXT DEFAULT 'user',
                 state TEXT DEFAULT 'to-confirm',
                 phone TEXT,
-                register_at TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours'),
-                updated_at TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours'),
+                register_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
                 logged_at TIMESTAMP DEFAULT NULL,
                 active_room TEXT DEFAULT NULL,
                 push_notifications BOOLEAN DEFAULT TRUE,
@@ -42,8 +42,8 @@ export async function initializeDatabase() {
                 league_country VARCHAR(255) NOT NULL,
                 status VARCHAR(255) NOT NULL DEFAULT 'inactive',
                 logo VARCHAR(255) NOT NULL,
-                created_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours'),
-                updated_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours')
+                created_at TIMESTAMP NOT NULL DEFAULT (NOW()),
+                updated_at TIMESTAMP NOT NULL DEFAULT (NOW())
             )
         `;
 
@@ -59,8 +59,8 @@ export async function initializeDatabase() {
                 label VARCHAR(255) NOT NULL,
                 country VARCHAR(255) NOT NULL,
                 team_id VARCHAR(255),
-                created_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours'),
-                updated_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours')
+                created_at TIMESTAMP NOT NULL DEFAULT (NOW()),
+                updated_at TIMESTAMP NOT NULL DEFAULT (NOW())
             )
         `;
 
@@ -90,8 +90,8 @@ export async function initializeDatabase() {
                 goals_away INT,
                 full_time_home_score INT,
                 full_time_away_score INT,
-                created_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours'),
-                updated_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours')
+                created_at TIMESTAMP NOT NULL DEFAULT (NOW()),
+                updated_at TIMESTAMP NOT NULL DEFAULT (NOW())
             )
         `;
 
@@ -112,8 +112,8 @@ export async function initializeDatabase() {
                 entry_fee INT NOT NULL DEFAULT 0,
                 prize_pool INT NOT NULL DEFAULT 0,
                 created_by VARCHAR(255) NOT NULL,
-                created_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours'),
-                updated_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours')
+                created_at TIMESTAMP NOT NULL DEFAULT (NOW()),
+                updated_at TIMESTAMP NOT NULL DEFAULT (NOW())
             )
         `;
 
@@ -132,8 +132,8 @@ export async function initializeDatabase() {
                 points INT NOT NULL DEFAULT 0,
                 local_ranking INT NOT NULL DEFAULT 0,
                 deposit INT NOT NULL DEFAULT 0,
-                updated_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours'),
-                created_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours'),
+                updated_at TIMESTAMP NOT NULL DEFAULT (NOW()),
+                created_at TIMESTAMP NOT NULL DEFAULT (NOW()),
                 CONSTRAINT tournaments_joins_status_check CHECK (status IN ('pending','active','blocked','finished')),
                 CONSTRAINT tournaments_joins_tournament_fk FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
                 CONSTRAINT tournaments_joins_user_fk FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
@@ -310,8 +310,8 @@ export async function initializeDatabase() {
         // Add new columns to existing users table if they don't exist
         try {
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT`;
-            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS register_at TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours')`;
-            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours')`;
+            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS register_at TIMESTAMP DEFAULT (NOW())`;
+            await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT (NOW())`;
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS logged_at TIMESTAMP DEFAULT NULL`;
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS push_notifications BOOLEAN DEFAULT TRUE`;
             await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT DEFAULT '👤'`;
@@ -369,15 +369,15 @@ export async function initializeDatabase() {
                 message TEXT,
                 is_read BOOLEAN NOT NULL DEFAULT FALSE,
                 action_url TEXT,
-                created_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours'),
-                updated_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours'),
+                created_at TIMESTAMP NOT NULL DEFAULT (NOW()),
+                updated_at TIMESTAMP NOT NULL DEFAULT (NOW()),
                 CONSTRAINT activities_user_fk FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
             )
         `;
         // Migrate legacy columns if present
         try { await sql`ALTER TABLE activities DROP COLUMN IF EXISTS timestamp`; } catch (e) {}
-        try { await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours')`; } catch (e) {}
-        try { await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours')`; } catch (e) {}
+        try { await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT (NOW())`; } catch (e) {}
+        try { await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT (NOW())`; } catch (e) {}
         await sql`CREATE INDEX IF NOT EXISTS activities_user_idx ON activities(user_id)`;
         await sql`CREATE INDEX IF NOT EXISTS activities_created_at_idx ON activities(created_at)`;
 

@@ -260,7 +260,7 @@ export async function updateMatch(req, res) {
         let query = 'UPDATE matches SET ';
         const setParts = updateFields.map((field, index) => {
             if (field === 'updated_at') {
-                return `${field} = NOW() + INTERVAL '2 hours'`;
+                return `${field} = NOW()`;
             }
             return `${field} = $${index + 1}`;
         });

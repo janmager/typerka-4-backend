@@ -79,7 +79,7 @@ CREATE INDEX IF NOT EXISTS matches_status_idx ON matches(status_short);
 CREATE OR REPLACE FUNCTION update_teams_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP + INTERVAL '2 hours';
+    NEW.updated_at = CURRENT_TIMESTAMP;
     RETURN NEW;
 END;
 $$ language 'plpgsql';
@@ -87,7 +87,7 @@ $$ language 'plpgsql';
 CREATE OR REPLACE FUNCTION update_matches_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP + INTERVAL '2 hours';
+    NEW.updated_at = CURRENT_TIMESTAMP;
     RETURN NEW;
 END;
 $$ language 'plpgsql';

@@ -5,6 +5,9 @@ import bodyParser from "body-parser";
 import rateLimiter from "./middleware/rateLimiter.js";
 import { wakeupJob } from "./config/cron.js";
 import { initializeDatabase } from "./config/db.js";
+
+// Set timezone to Europe/Warsaw for consistent behavior
+process.env.TZ = 'Europe/Warsaw';
 import usersRoute from "./routes/usersRoute.js";
 import mailingRoute from "./routes/mailingRoute.js";
 import adminRoute from "./routes/adminRoute.js";

@@ -80,7 +80,7 @@ async function storeTeams(teams) {
                             logo = ${team.logo || ''},
                             label = ${team.code || team.name.substring(0, 6).toUpperCase()},
                             country = ${team.country || 'Unknown'},
-                            updated_at = NOW() + INTERVAL '2 hours'
+                            updated_at = NOW()
                         WHERE team_id = ${teamIdStr}
                     `;
                 } catch {}
@@ -258,7 +258,7 @@ async function storeMatches(fixtures) {
                         full_time_home_score = ${fullTimeHomeScore},
                         full_time_away_score = ${fullTimeAwayScore},
                         round = ${fixture.league?.round || fixture?.league?.round || null},
-                        updated_at = NOW() + INTERVAL '2 hours'
+                        updated_at = NOW()
                     WHERE id = ${existingId}
                     RETURNING *
                 `;
@@ -605,7 +605,7 @@ export async function updateLeagueStatus(req, res) {
                 if (status) updateParts.push(`status = '${status}'`);
                 // update_times removed from leagues
                 
-                updateParts.push(`updated_at = NOW() + INTERVAL '2 hours'`);
+                updateParts.push(`updated_at = NOW()`);
                 updateQuery += updateParts.join(', ');
                 updateQuery += ` WHERE league_id = '${league_id}' RETURNING *`;
 
@@ -647,7 +647,7 @@ export async function updateLeagueStatus(req, res) {
 
                 result = await sql`
                     UPDATE leagues 
-                    SET status = ${status}, updated_at = NOW() + INTERVAL '2 hours'
+                    SET status = ${status}, updated_at = NOW()
                     WHERE league_id = ${league_id}
                     RETURNING *
                 `;
@@ -888,7 +888,7 @@ export async function refreshLeague(req, res) {
                     league_slug = ${details.league_slug},
                     league_country = ${details.league_country},
                     logo = ${details.logo},
-                    updated_at = NOW() + INTERVAL '2 hours'
+                    updated_at = NOW()
                 WHERE league_id = ${league_id}
             `;
         }
