@@ -607,25 +607,30 @@ export async function getMatchesForActiveTournament(req, res) {
 
         // Build conditions
         let where = sql`m.league_id = ${leagueId}`;
-        let orderDir = sql`ASC`;
+        let orderDir = 'ASC';
+        let isDescending = false;
         if (filterStatusRaw === 'NS') {
             where = sql`${where} AND m.status = 'NS' AND (m.match_date::timestamp + m.match_time) >= ${todayStart}`;
-            orderDir = sql`ASC`;
+            orderDir = 'ASC';
+            isDescending = false;
         } else if (filterStatusRaw === 'FT') {
             where = sql`${where} AND m.status = 'FT'`;
-            orderDir = sql`DESC`;
+            orderDir = 'DESC';
+            isDescending = true;
         } else if (filterStatusRaw === 'LIVE') {
             where = sql`${where} AND m.status IN ('1H','2H','HT')`;
-            orderDir = sql`ASC`;
+            orderDir = 'ASC';
+            isDescending = false;
         } else {
             where = sql`${where} AND (m.match_date::timestamp + m.match_time) >= ${todayStart}`;
-            orderDir = sql`ASC`;
+            orderDir = 'ASC';
+            isDescending = false;
         }
 
         let rows = [];
         if (beforeRaw) {
             const beforeTs = new Date(beforeRaw);
-            const compOp = (String(orderDir.strings?.join('') || '') === 'DESC') ? sql`<` : sql`>`;
+            const compOp = isDescending ? sql`<` : sql`>`;
             rows = await sql`
                 SELECT m.*, 
                     ht.name as home_team_name, ht.logo as home_team_logo, ht.label as home_team_label,
@@ -637,7 +642,7 @@ export async function getMatchesForActiveTournament(req, res) {
                 LEFT JOIN teams at ON m.away_team = at.team_id
                 LEFT JOIN leagues l ON m.league_id = l.league_id::int
                 WHERE ${where} AND (m.match_date::timestamp + m.match_time) ${compOp} ${beforeTs}
-                ORDER BY dt ${orderDir}
+                ORDER BY dt ${orderDir === 'DESC' ? sql`DESC` : sql`ASC`}
                 LIMIT ${limit + 1}
             `;
         } else {
@@ -652,7 +657,7 @@ export async function getMatchesForActiveTournament(req, res) {
                 LEFT JOIN teams at ON m.away_team = at.team_id
                 LEFT JOIN leagues l ON m.league_id = l.league_id::int
                 WHERE ${where}
-                ORDER BY dt ${orderDir}
+                ORDER BY dt ${orderDir === 'DESC' ? sql`DESC` : sql`ASC`}
                 LIMIT ${limit + 1}
             `;
         }
@@ -670,6 +675,75 @@ export async function getMatchesForActiveTournament(req, res) {
 }
 
 // Public: Get all matches across user's tournaments (by their leagues)
+// Get matches for the next match day (today or tomorrow) for user's active tournament
+export async function getNextMatchDay(req, res) {
+    try {
+        const { user_id } = req.query;
+        if (!user_id) return res.status(400).json({ response: false, message: 'Brak user_id' });
+
+        // Get user's active tournament
+        const userRows = await sql`SELECT user_id, state, active_tournament FROM users WHERE user_id = ${user_id}`;
+        if (userRows.length === 0) return res.status(404).json({ response: false, message: 'Użytkownik nie istnieje' });
+        if (userRows[0].state !== 'active') return res.status(403).json({ response: false, message: 'Konto nieaktywne' });
+        
+        const activeTournamentId = userRows[0].active_tournament;
+        if (!activeTournamentId) return res.status(200).json({ response: true, data: [] });
+
+        // Get tournament's league
+        const tours = await sql`SELECT league_id FROM tournaments WHERE id = ${activeTournamentId} LIMIT 1`;
+        if (tours.length === 0) return res.status(200).json({ response: true, data: [] });
+        const leagueId = tours[0].league_id;
+
+        // Get today's date in Warsaw timezone
+        const todayWarsaw = new Date();
+        todayWarsaw.setHours(todayWarsaw.getHours() + 2); // Convert to Warsaw time
+        const todayDate = todayWarsaw.toISOString().split('T')[0];
+
+        // Get tomorrow's date
+        const tomorrow = new Date(todayWarsaw);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowDate = tomorrow.toISOString().split('T')[0];
+
+        // First try to get matches for today
+        let matches = await sql`
+            SELECT m.*, 
+                ht.name as home_team_name, ht.logo as home_team_logo, ht.label as home_team_label,
+                at.name as away_team_name, at.logo as away_team_logo, at.label as away_team_label,
+                l.league_name, l.league_country,
+                (m.match_date::timestamp + m.match_time) as dt
+            FROM matches m
+            LEFT JOIN teams ht ON m.home_team = ht.team_id
+            LEFT JOIN teams at ON m.away_team = at.team_id
+            LEFT JOIN leagues l ON m.league_id = l.league_id::int
+            WHERE m.league_id = ${leagueId} AND m.match_date = ${todayDate}
+            ORDER BY m.match_time ASC
+        `;
+
+        // If no matches today, get tomorrow's matches
+        if (matches.length === 0) {
+            matches = await sql`
+                SELECT m.*, 
+                    ht.name as home_team_name, ht.logo as home_team_logo, ht.label as home_team_label,
+                    at.name as away_team_name, at.logo as away_team_logo, at.label as away_team_label,
+                    l.league_name, l.league_country,
+                    (m.match_date::timestamp + m.match_time) as dt
+                FROM matches m
+                LEFT JOIN teams ht ON m.home_team = ht.team_id
+                LEFT JOIN teams at ON m.away_team = at.team_id
+                LEFT JOIN leagues l ON m.league_id = l.league_id::int
+                WHERE m.league_id = ${leagueId} AND m.match_date = ${tomorrowDate}
+                ORDER BY m.match_time ASC
+            `;
+        }
+
+        return res.status(200).json({ response: true, data: matches });
+
+    } catch (error) {
+        console.error('Error getting next match day:', error);
+        return res.status(500).json({ response: false, message: 'Błąd serwera podczas pobierania meczów' });
+    }
+}
+
 export async function getAllUserMatches(req, res) {
     try {
         const { user_id } = req.query;
@@ -695,25 +769,30 @@ export async function getAllUserMatches(req, res) {
 
         // Build conditions
         let where = sql`m.league_id = ANY(${leagueIds})`;
-        let orderDir = sql`ASC`;
+        let orderDir = 'ASC';
+        let isDescending = false;
         if (filterStatusRaw === 'NS') {
             where = sql`${where} AND m.status = 'NS' AND (m.match_date::timestamp + m.match_time) >= ${todayStart}`;
-            orderDir = sql`ASC`;
+            orderDir = 'ASC';
+            isDescending = false;
         } else if (filterStatusRaw === 'FT') {
             where = sql`${where} AND m.status = 'FT'`;
-            orderDir = sql`DESC`;
+            orderDir = 'DESC';
+            isDescending = true;
         } else if (filterStatusRaw === 'LIVE') {
             where = sql`${where} AND m.status IN ('1H','2H','HT')`;
-            orderDir = sql`ASC`;
+            orderDir = 'ASC';
+            isDescending = false;
         } else {
             where = sql`${where} AND (m.match_date::timestamp + m.match_time) >= ${todayStart}`;
-            orderDir = sql`ASC`;
+            orderDir = 'ASC';
+            isDescending = false;
         }
 
         let rows = [];
         if (beforeRaw) {
             const beforeTs = new Date(beforeRaw);
-            const compOp = (String(orderDir.strings?.join('') || '') === 'DESC') ? sql`<` : sql`>`;
+            const compOp = isDescending ? sql`<` : sql`>`;
             rows = await sql`
                 SELECT m.*, 
                     ht.name as home_team_name, ht.logo as home_team_logo, ht.label as home_team_label,
@@ -725,7 +804,7 @@ export async function getAllUserMatches(req, res) {
                 LEFT JOIN teams at ON m.away_team = at.team_id
                 LEFT JOIN leagues l ON m.league_id = l.league_id::int
                 WHERE ${where} AND (m.match_date::timestamp + m.match_time) ${compOp} ${beforeTs}
-                ORDER BY dt ${orderDir}
+                ORDER BY dt ${orderDir === 'DESC' ? sql`DESC` : sql`ASC`}
                 LIMIT ${limit + 1}
             `;
         } else {
@@ -740,7 +819,7 @@ export async function getAllUserMatches(req, res) {
                 LEFT JOIN teams at ON m.away_team = at.team_id
                 LEFT JOIN leagues l ON m.league_id = l.league_id::int
                 WHERE ${where}
-                ORDER BY dt ${orderDir}
+                ORDER BY dt ${orderDir === 'DESC' ? sql`DESC` : sql`ASC`}
                 LIMIT ${limit + 1}
             `;
         }

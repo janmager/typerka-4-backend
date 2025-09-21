@@ -4,6 +4,12 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import rateLimiter from "./middleware/rateLimiter.js";
 import { wakeupJob } from "./config/cron.js";
+import { 
+    leagueUpdateJob, 
+    logUpdateTimesJob, 
+    refreshUpdateTimesJob, 
+    initializeLeagueUpdateSystem 
+} from "./config/leagueUpdateCron.js";
 import { initializeDatabase } from "./config/db.js";
 
 // Set timezone to UTC for production server compatibility
@@ -32,11 +38,22 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(rateLimiter);
 
-let test = false;
+let test = true;
 
 // cron jobs
 if (process.env.NODE_ENV === "production" || test) {
     wakeupJob.start();
+    
+    // Initialize league update system
+    initializeLeagueUpdateSystem().then(() => {
+        // Start league update cron jobs
+        leagueUpdateJob.start();
+        logUpdateTimesJob.start();
+        refreshUpdateTimesJob.start();
+        console.log('✅ [SERVER] League update cron jobs started');
+    }).catch(error => {
+        console.error('❌ [SERVER] Failed to initialize league update system:', error);
+    });
 }
 
 const PORT = process.env.PORT || 5001;

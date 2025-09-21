@@ -1,7 +1,7 @@
 import { sql } from "../config/db.js";
 
 // Helper function to log API calls to api_football_logs table
-async function logApiCall(description, url) {
+export async function logApiCall(description, url) {
     try {
         await sql`
             INSERT INTO api_football_logs (description, url, created_at)
@@ -14,7 +14,7 @@ async function logApiCall(description, url) {
 }
 
 // Fetch teams for a specific league and season
-async function fetchTeamsForLeague(leagueId, season = new Date().getFullYear()) {
+export async function fetchTeamsForLeague(leagueId, season = new Date().getFullYear()) {
     try {
         const apiKey = process.env.API_FOOTBALL_KEY;
         const teamsUrl = `https://v3.football.api-sports.io/teams?league=${leagueId}&season=${season}`;
@@ -46,7 +46,7 @@ async function fetchTeamsForLeague(leagueId, season = new Date().getFullYear()) 
 }
 
 // Fetch fixtures for a specific league and season
-async function fetchFixturesForLeague(leagueId, season = new Date().getFullYear()) {
+export async function fetchFixturesForLeague(leagueId, season = new Date().getFullYear()) {
     try {
         const apiKey = process.env.API_FOOTBALL_KEY;
         const url = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=${season}&timezone=Europe/Warsaw`;
@@ -75,7 +75,7 @@ async function fetchFixturesForLeague(leagueId, season = new Date().getFullYear(
 }
 
 // Store teams in database (custom table structure)
-async function storeTeams(teams) {
+export async function storeTeams(teams) {
     const storedTeams = [];
     
     for (const teamData of teams) {
@@ -151,7 +151,7 @@ async function storeTeams(teams) {
 }
 
 // Store matches in database (custom table structure)
-async function storeMatches(fixtures) {
+export async function storeMatches(fixtures) {
     const storedMatches = [];
     
     for (const fixture of fixtures) {
@@ -296,7 +296,7 @@ async function storeMatches(fixtures) {
 }
 
 // Fetch league details from API-Football
-async function fetchLeagueDetails(leagueId, season = new Date().getFullYear()) {
+export async function fetchLeagueDetails(leagueId, season = new Date().getFullYear()) {
     try {
         const apiKey = process.env.API_FOOTBALL_KEY;
         
@@ -410,16 +410,565 @@ function getDatePartsInTZ(isoString, timeZone = 'Europe/Warsaw') {
 }
 
 // Check if user is admin
+// Get all users with pagination and filtering
+export async function getAllUsers(req, res) {
+    try {
+        const { 
+            page = 1, 
+            limit = 20, 
+            status = 'all', 
+            type = 'all',
+            search = '',
+            admin_user_id 
+        } = req.query;
+
+        // Check if admin_user_id is provided and is valid admin
+        if (!admin_user_id) {
+            return res.status(400).json({ response: false, message: 'Brak admin_user_id' });
+        }
+
+        const adminCheck = await sql`
+            SELECT user_id, type FROM users WHERE user_id = ${admin_user_id}
+        `;
+        
+        if (adminCheck.length === 0 || adminCheck[0].type !== 'admin') {
+            return res.status(403).json({ response: false, message: 'Brak uprawnień administratora' });
+        }
+
+        const offset = (page - 1) * limit;
+        
+        // Build WHERE conditions
+        let whereConditions = [];
+        let params = [];
+        let paramIndex = 1;
+
+        // Status filter
+        if (status !== 'all') {
+            whereConditions.push(`u.state = $${paramIndex}`);
+            params.push(status);
+            paramIndex++;
+        }
+
+        // Type filter
+        if (type !== 'all') {
+            whereConditions.push(`u.type = $${paramIndex}`);
+            params.push(type);
+            paramIndex++;
+        }
+
+        // Search filter
+        if (search && search.trim()) {
+            whereConditions.push(`(u.name ILIKE $${paramIndex} OR u.email ILIKE $${paramIndex})`);
+            params.push(`%${search.trim()}%`);
+            paramIndex++;
+        }
+
+        const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+        // Get total count
+        let totalResult;
+        if (whereConditions.length === 0) {
+            totalResult = await sql`SELECT COUNT(*) as total FROM users u`;
+        } else if (status !== 'all' && type !== 'all' && search && search.trim()) {
+            totalResult = await sql`
+                SELECT COUNT(*) as total 
+                FROM users u 
+                WHERE u.state = ${status} AND u.type = ${type} AND (u.name ILIKE ${`%${search.trim()}%`} OR u.email ILIKE ${`%${search.trim()}%`})
+            `;
+        } else if (status !== 'all' && type !== 'all') {
+            totalResult = await sql`
+                SELECT COUNT(*) as total 
+                FROM users u 
+                WHERE u.state = ${status} AND u.type = ${type}
+            `;
+        } else if (status !== 'all' && search && search.trim()) {
+            totalResult = await sql`
+                SELECT COUNT(*) as total 
+                FROM users u 
+                WHERE u.state = ${status} AND (u.name ILIKE ${`%${search.trim()}%`} OR u.email ILIKE ${`%${search.trim()}%`})
+            `;
+        } else if (type !== 'all' && search && search.trim()) {
+            totalResult = await sql`
+                SELECT COUNT(*) as total 
+                FROM users u 
+                WHERE u.type = ${type} AND (u.name ILIKE ${`%${search.trim()}%`} OR u.email ILIKE ${`%${search.trim()}%`})
+            `;
+        } else if (status !== 'all') {
+            totalResult = await sql`
+                SELECT COUNT(*) as total 
+                FROM users u 
+                WHERE u.state = ${status}
+            `;
+        } else if (type !== 'all') {
+            totalResult = await sql`
+                SELECT COUNT(*) as total 
+                FROM users u 
+                WHERE u.type = ${type}
+            `;
+        } else if (search && search.trim()) {
+            totalResult = await sql`
+                SELECT COUNT(*) as total 
+                FROM users u 
+                WHERE u.name ILIKE ${`%${search.trim()}%`} OR u.email ILIKE ${`%${search.trim()}%`}
+            `;
+        }
+        const total = parseInt(totalResult[0].total);
+
+        // Get users with statistics
+        let users;
+        if (whereConditions.length === 0) {
+            users = await sql`
+                SELECT 
+                    u.user_id,
+                    u.email,
+                    u.name,
+                    u.type,
+                    u.state,
+                    u.avatar,
+                    u.register_at,
+                    u.logged_at as last_login,
+                    0 as tournaments_count,
+                    0 as predictions_count,
+                    0 as total_points
+                FROM users u
+                ORDER BY u.register_at DESC
+                LIMIT ${limit} OFFSET ${offset}
+            `;
+        } else if (status !== 'all' && type !== 'all' && search && search.trim()) {
+            users = await sql`
+                SELECT 
+                    u.user_id,
+                    u.email,
+                    u.name,
+                    u.type,
+                    u.state,
+                    u.avatar,
+                    u.created_at as register_at,
+                    u.last_login,
+                    COALESCE(tournament_stats.tournaments_count, 0) as tournaments_count,
+                    COALESCE(prediction_stats.predictions_count, 0) as predictions_count,
+                    COALESCE(prediction_stats.total_points, 0) as total_points
+                FROM users u
+                LEFT JOIN (
+                    SELECT 
+                        created_by as user_id,
+                        COUNT(*) as tournaments_count
+                    FROM tournaments 
+                    GROUP BY created_by
+                ) tournament_stats ON u.user_id = tournament_stats.user_id
+                LEFT JOIN (
+                    SELECT 
+                        user_id,
+                        COUNT(*) as predictions_count,
+                        SUM(points) as total_points
+                    FROM predictions 
+                    GROUP BY user_id
+                ) prediction_stats ON u.user_id = prediction_stats.user_id
+                WHERE u.state = ${status} AND u.type = ${type} AND (u.name ILIKE ${`%${search.trim()}%`} OR u.email ILIKE ${`%${search.trim()}%`})
+                ORDER BY u.created_at DESC
+                LIMIT ${limit} OFFSET ${offset}
+            `;
+        } else if (status !== 'all' && type !== 'all') {
+            users = await sql`
+                SELECT 
+                    u.user_id,
+                    u.email,
+                    u.name,
+                    u.type,
+                    u.state,
+                    u.avatar,
+                    u.created_at as register_at,
+                    u.last_login,
+                    COALESCE(tournament_stats.tournaments_count, 0) as tournaments_count,
+                    COALESCE(prediction_stats.predictions_count, 0) as predictions_count,
+                    COALESCE(prediction_stats.total_points, 0) as total_points
+                FROM users u
+                LEFT JOIN (
+                    SELECT 
+                        created_by as user_id,
+                        COUNT(*) as tournaments_count
+                    FROM tournaments 
+                    GROUP BY created_by
+                ) tournament_stats ON u.user_id = tournament_stats.user_id
+                LEFT JOIN (
+                    SELECT 
+                        user_id,
+                        COUNT(*) as predictions_count,
+                        SUM(points) as total_points
+                    FROM predictions 
+                    GROUP BY user_id
+                ) prediction_stats ON u.user_id = prediction_stats.user_id
+                WHERE u.state = ${status} AND u.type = ${type}
+                ORDER BY u.created_at DESC
+                LIMIT ${limit} OFFSET ${offset}
+            `;
+        } else if (status !== 'all' && search && search.trim()) {
+            users = await sql`
+                SELECT 
+                    u.user_id,
+                    u.email,
+                    u.name,
+                    u.type,
+                    u.state,
+                    u.avatar,
+                    u.created_at as register_at,
+                    u.last_login,
+                    COALESCE(tournament_stats.tournaments_count, 0) as tournaments_count,
+                    COALESCE(prediction_stats.predictions_count, 0) as predictions_count,
+                    COALESCE(prediction_stats.total_points, 0) as total_points
+                FROM users u
+                LEFT JOIN (
+                    SELECT 
+                        created_by as user_id,
+                        COUNT(*) as tournaments_count
+                    FROM tournaments 
+                    GROUP BY created_by
+                ) tournament_stats ON u.user_id = tournament_stats.user_id
+                LEFT JOIN (
+                    SELECT 
+                        user_id,
+                        COUNT(*) as predictions_count,
+                        SUM(points) as total_points
+                    FROM predictions 
+                    GROUP BY user_id
+                ) prediction_stats ON u.user_id = prediction_stats.user_id
+                WHERE u.state = ${status} AND (u.name ILIKE ${`%${search.trim()}%`} OR u.email ILIKE ${`%${search.trim()}%`})
+                ORDER BY u.created_at DESC
+                LIMIT ${limit} OFFSET ${offset}
+            `;
+        } else if (type !== 'all' && search && search.trim()) {
+            users = await sql`
+                SELECT 
+                    u.user_id,
+                    u.email,
+                    u.name,
+                    u.type,
+                    u.state,
+                    u.avatar,
+                    u.created_at as register_at,
+                    u.last_login,
+                    COALESCE(tournament_stats.tournaments_count, 0) as tournaments_count,
+                    COALESCE(prediction_stats.predictions_count, 0) as predictions_count,
+                    COALESCE(prediction_stats.total_points, 0) as total_points
+                FROM users u
+                LEFT JOIN (
+                    SELECT 
+                        created_by as user_id,
+                        COUNT(*) as tournaments_count
+                    FROM tournaments 
+                    GROUP BY created_by
+                ) tournament_stats ON u.user_id = tournament_stats.user_id
+                LEFT JOIN (
+                    SELECT 
+                        user_id,
+                        COUNT(*) as predictions_count,
+                        SUM(points) as total_points
+                    FROM predictions 
+                    GROUP BY user_id
+                ) prediction_stats ON u.user_id = prediction_stats.user_id
+                WHERE u.type = ${type} AND (u.name ILIKE ${`%${search.trim()}%`} OR u.email ILIKE ${`%${search.trim()}%`})
+                ORDER BY u.created_at DESC
+                LIMIT ${limit} OFFSET ${offset}
+            `;
+        } else if (status !== 'all') {
+            users = await sql`
+                SELECT 
+                    u.user_id,
+                    u.email,
+                    u.name,
+                    u.type,
+                    u.state,
+                    u.avatar,
+                    u.created_at as register_at,
+                    u.last_login,
+                    COALESCE(tournament_stats.tournaments_count, 0) as tournaments_count,
+                    COALESCE(prediction_stats.predictions_count, 0) as predictions_count,
+                    COALESCE(prediction_stats.total_points, 0) as total_points
+                FROM users u
+                LEFT JOIN (
+                    SELECT 
+                        created_by as user_id,
+                        COUNT(*) as tournaments_count
+                    FROM tournaments 
+                    GROUP BY created_by
+                ) tournament_stats ON u.user_id = tournament_stats.user_id
+                LEFT JOIN (
+                    SELECT 
+                        user_id,
+                        COUNT(*) as predictions_count,
+                        SUM(points) as total_points
+                    FROM predictions 
+                    GROUP BY user_id
+                ) prediction_stats ON u.user_id = prediction_stats.user_id
+                WHERE u.state = ${status}
+                ORDER BY u.created_at DESC
+                LIMIT ${limit} OFFSET ${offset}
+            `;
+        } else if (type !== 'all') {
+            users = await sql`
+                SELECT 
+                    u.user_id,
+                    u.email,
+                    u.name,
+                    u.type,
+                    u.state,
+                    u.avatar,
+                    u.created_at as register_at,
+                    u.last_login,
+                    COALESCE(tournament_stats.tournaments_count, 0) as tournaments_count,
+                    COALESCE(prediction_stats.predictions_count, 0) as predictions_count,
+                    COALESCE(prediction_stats.total_points, 0) as total_points
+                FROM users u
+                LEFT JOIN (
+                    SELECT 
+                        created_by as user_id,
+                        COUNT(*) as tournaments_count
+                    FROM tournaments 
+                    GROUP BY created_by
+                ) tournament_stats ON u.user_id = tournament_stats.user_id
+                LEFT JOIN (
+                    SELECT 
+                        user_id,
+                        COUNT(*) as predictions_count,
+                        SUM(points) as total_points
+                    FROM predictions 
+                    GROUP BY user_id
+                ) prediction_stats ON u.user_id = prediction_stats.user_id
+                WHERE u.type = ${type}
+                ORDER BY u.created_at DESC
+                LIMIT ${limit} OFFSET ${offset}
+            `;
+        } else if (search && search.trim()) {
+            users = await sql`
+                SELECT 
+                    u.user_id,
+                    u.email,
+                    u.name,
+                    u.type,
+                    u.state,
+                    u.avatar,
+                    u.created_at as register_at,
+                    u.last_login,
+                    COALESCE(tournament_stats.tournaments_count, 0) as tournaments_count,
+                    COALESCE(prediction_stats.predictions_count, 0) as predictions_count,
+                    COALESCE(prediction_stats.total_points, 0) as total_points
+                FROM users u
+                LEFT JOIN (
+                    SELECT 
+                        created_by as user_id,
+                        COUNT(*) as tournaments_count
+                    FROM tournaments 
+                    GROUP BY created_by
+                ) tournament_stats ON u.user_id = tournament_stats.user_id
+                LEFT JOIN (
+                    SELECT 
+                        user_id,
+                        COUNT(*) as predictions_count,
+                        SUM(points) as total_points
+                    FROM predictions 
+                    GROUP BY user_id
+                ) prediction_stats ON u.user_id = prediction_stats.user_id
+                WHERE u.name ILIKE ${`%${search.trim()}%`} OR u.email ILIKE ${`%${search.trim()}%`}
+                ORDER BY u.created_at DESC
+                LIMIT ${limit} OFFSET ${offset}
+            `;
+        }
+
+        return res.status(200).json({
+            response: true,
+            data: {
+                users,
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total,
+                    totalPages: Math.ceil(total / limit)
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        return res.status(500).json({
+            response: false,
+            message: 'Błąd serwera podczas pobierania użytkowników'
+        });
+    }
+}
+
+// Update user status
+export async function updateUserStatus(req, res) {
+    try {
+        const { user_id, new_status, admin_user_id } = req.body;
+
+        if (!user_id || !new_status || !admin_user_id) {
+            return res.status(400).json({
+                response: false,
+                message: 'Brak wymaganych pól: user_id, new_status, admin_user_id'
+            });
+        }
+
+        // Check if admin_user_id is valid admin
+        const adminCheck = await sql`
+            SELECT user_id, type FROM users WHERE user_id = ${admin_user_id}
+        `;
+        
+        if (adminCheck.length === 0 || adminCheck[0].type !== 'admin') {
+            return res.status(403).json({ response: false, message: 'Brak uprawnień administratora' });
+        }
+
+        // Validate status
+        const validStatuses = ['active', 'inactive', 'banned'];
+        if (!validStatuses.includes(new_status)) {
+            return res.status(400).json({
+                response: false,
+                message: 'Nieprawidłowy status. Dozwolone: active, inactive, banned'
+            });
+        }
+
+        // Check if user exists
+        const userCheck = await sql`
+            SELECT user_id, state, type FROM users WHERE user_id = ${user_id}
+        `;
+        
+        if (userCheck.length === 0) {
+            return res.status(404).json({ response: false, message: 'Użytkownik nie istnieje' });
+        }
+
+        // Prevent admin from changing their own status
+        if (user_id === admin_user_id) {
+            return res.status(400).json({
+                response: false,
+                message: 'Nie możesz zmienić statusu własnego konta'
+            });
+        }
+
+        // Update user status
+        const result = await sql`
+            UPDATE users 
+            SET state = ${new_status}, updated_at = NOW() + INTERVAL '2 hours'
+            WHERE user_id = ${user_id}
+            RETURNING user_id, name, email, state, type
+        `;
+
+        return res.status(200).json({
+            response: true,
+            message: `Status użytkownika ${result[0].name} został zmieniony na ${new_status}`,
+            data: result[0]
+        });
+
+    } catch (error) {
+        console.error('Error updating user status:', error);
+        return res.status(500).json({
+            response: false,
+            message: 'Błąd serwera podczas aktualizacji statusu użytkownika'
+        });
+    }
+}
+
+// Get user details for drawer
+export async function getUserDetails(req, res) {
+    try {
+        const { user_id, admin_user_id } = req.query;
+
+        if (!user_id || !admin_user_id) {
+            return res.status(400).json({
+                response: false,
+                message: 'Brak wymaganych pól: user_id, admin_user_id'
+            });
+        }
+
+        // Check if admin_user_id is valid admin
+        const adminCheck = await sql`
+            SELECT user_id, type FROM users WHERE user_id = ${admin_user_id}
+        `;
+        
+        if (adminCheck.length === 0 || adminCheck[0].type !== 'admin') {
+            return res.status(403).json({ response: false, message: 'Brak uprawnień administratora' });
+        }
+
+
+        const userResult = await sql`
+            SELECT 
+                u.user_id,
+                u.email,
+                u.name,
+                u.type,
+                u.state,
+                u.avatar,
+                u.register_at,
+                u.logged_at as last_login,
+                u.updated_at,
+                0 as tournaments_count,
+                0 as tournaments_created,
+                0 as joined_tournaments,
+                0 as predictions_count,
+                0 as total_points,
+                0 as correct_predictions,
+                0 as activities_count
+            FROM users u
+            WHERE u.user_id = ${user_id}
+        `;
+        
+        if (userResult.length === 0) {
+            return res.status(404).json({ response: false, message: 'Użytkownik nie istnieje' });
+        }
+
+        // Get recent activities
+        const recentActivities = await sql`
+            SELECT icon, type, title, message, created_at, action_url
+            FROM activities 
+            WHERE user_id = ${user_id}
+            ORDER BY created_at DESC
+            LIMIT 10
+        `;
+
+        // Get recent tournaments
+        const recentTournaments = await sql`
+            SELECT t.id, t.name, t.status, t.created_at, tj.status as join_status
+            FROM tournaments t
+            LEFT JOIN tournaments_joins tj ON t.id = tj.tournament_id AND tj.user_id = ${user_id}
+            WHERE t.created_by = ${user_id} OR tj.user_id = ${user_id}
+            ORDER BY t.created_at DESC
+            LIMIT 5
+        `;
+
+        return res.status(200).json({
+            response: true,
+            data: {
+                user: userResult[0],
+                recentActivities,
+                recentTournaments
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching user details:', error);
+        return res.status(500).json({
+            response: false,
+            message: 'Błąd serwera podczas pobierania szczegółów użytkownika'
+        });
+    }
+}
+
 export async function checkAdminUser(req, res, next) {
     try {
-        console.log('DEBUG: checkAdminUser called for method:', req.method);
-        // For GET requests, check query parameters; for POST/PUT requests, check body
-        const user_id = req.method === 'GET' ? req.query.user_id : req.body.user_id;
+        // For user management endpoints, use admin_user_id; for others use user_id
+        let user_id;
+        if (req.path.includes('/users/') || req.path === '/users') {
+            // For user management endpoints, always use admin_user_id
+            user_id = req.method === 'GET' ? req.query.admin_user_id : req.body.admin_user_id;
+        } else {
+            // For other endpoints, use user_id or admin_user_id
+            user_id = req.method === 'GET' 
+                ? (req.query.user_id || req.query.admin_user_id)
+                : (req.body.user_id || req.body.admin_user_id);
+        }
         
         if (!user_id) {
             return res.status(400).json({
                 response: false,
-                message: "Brak user_id"
+                message: "Brak user_id lub admin_user_id"
             });
         }
 
@@ -763,10 +1312,10 @@ export async function addLeagueRecord(req, res) {
         const result = await sql`
             INSERT INTO leagues (
                 league_id, league_name, league_slug, league_country, 
-                logo, status
+                logo, status, season
             ) VALUES (
                 ${details.league_id}, ${details.league_name}, ${details.league_slug}, ${details.league_country}, 
-                ${details.logo}, ${status}
+                ${details.logo}, ${status}, ${season}
             ) RETURNING *
         `;
 

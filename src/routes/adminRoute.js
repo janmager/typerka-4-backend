@@ -1,5 +1,5 @@
 import express from "express";
-import { checkAdminUser, updateLeagueStatus, addLeagueRecord, getAllLeagues, refreshLeague, getApiFootballLogs } from "../controllers/adminController.js";
+import { checkAdminUser, updateLeagueStatus, addLeagueRecord, getAllLeagues, refreshLeague, getApiFootballLogs, getAllUsers, updateUserStatus, getUserDetails } from "../controllers/adminController.js";
 
 const router = express.Router();
 
@@ -20,5 +20,14 @@ router.post("/leagues/update", refreshLeague);
 
 // GET /api/admin/api-logs - Get API football logs (admin only)
 router.get("/api-logs", getApiFootballLogs);
+
+// GET /api/admin/users - Get all users with pagination and filtering
+router.get("/users", getAllUsers);
+
+// POST /api/admin/users/update-status - Update user status
+router.post("/users/update-status", updateUserStatus);
+
+// GET /api/admin/users/details - Get user details for drawer
+router.get("/users/details", getUserDetails);
 
 export default router;
