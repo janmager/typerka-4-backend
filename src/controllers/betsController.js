@@ -5,6 +5,8 @@ export async function createOrUpdateBet(req, res) {
     try {
         const { match_id, home_bet, away_bet } = req.body;
         const { user_id } = req.query;
+        
+        console.log(`🎯 [BETS] Create/Update bet request - User: ${user_id}, Match: ${match_id}, Bet: ${home_bet}-${away_bet}`);
 
         if (!user_id) {
             return res.status(400).json({
@@ -94,6 +96,8 @@ export async function createOrUpdateBet(req, res) {
             `;
         }
 
+        console.log(`✅ [BETS] Bet ${existingBet.length > 0 ? 'updated' : 'created'} successfully - ID: ${result[0].id}`);
+        
         return res.status(200).json({
             response: true,
             data: result[0],
@@ -249,6 +253,8 @@ export async function updateBetStatus(req, res) {
     try {
         const { bet_id } = req.params;
         const { status, points } = req.body;
+        
+        console.log(`🔄 [BETS] Update bet status - ID: ${bet_id}, Status: ${status}, Points: ${points}`);
 
         if (!bet_id) {
             return res.status(400).json({
@@ -297,6 +303,8 @@ export async function updateBetStatus(req, res) {
             RETURNING *
         `;
 
+        console.log(`✅ [BETS] Bet status updated successfully - ID: ${bet_id}, New Status: ${status}`);
+        
         return res.status(200).json({
             response: true,
             data: result[0],
@@ -363,3 +371,4 @@ export async function getBetDetails(req, res) {
         });
     }
 }
+

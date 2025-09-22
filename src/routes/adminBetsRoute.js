@@ -17,3 +17,4 @@ router.get("/:bet_id", getBetDetails);
 router.put("/:bet_id/status", updateBetStatus);
 
 export default router;
+

@@ -401,6 +401,7 @@ function getDatePartsInTZ(isoString, timeZone = 'Europe/Warsaw') {
 // Get all users with pagination and filtering
 export async function getAllUsers(req, res) {
     try {
+        console.log(`👥 [ADMIN] Get all users request - Page: ${req.query.page || 1}, Limit: ${req.query.limit || 20}`);
         
         const { 
             page = 1, 
@@ -766,6 +767,8 @@ export async function getAllUsers(req, res) {
             `;
         }
 
+        console.log(`✅ [ADMIN] Users retrieved successfully - Count: ${users.length}, Total: ${total}`);
+        
         return res.status(200).json({
             response: true,
             data: {
@@ -792,6 +795,7 @@ export async function getAllUsers(req, res) {
 export async function updateUserStatus(req, res) {
     try {
         const { user_id, new_status, admin_user_id } = req.body;
+        console.log(`👤 [ADMIN] Update user status request - User: ${user_id}, Status: ${new_status}`);
 
         if (!user_id || !new_status || !admin_user_id) {
             return res.status(400).json({
@@ -862,6 +866,7 @@ export async function updateUserStatus(req, res) {
 export async function getUserDetails(req, res) {
     try {
         const { user_id, admin_user_id } = req.query;
+        console.log(`👤 [ADMIN] Get user details request - User: ${user_id}`);
 
         if (!user_id || !admin_user_id) {
             return res.status(400).json({
@@ -1009,6 +1014,7 @@ export async function updateLeagueStatus(req, res) {
             update_times, 
             action 
         } = req.body;
+        console.log(`🏆 [ADMIN] Update league status request - League: ${league_id}, Action: ${action}, Status: ${status}`);
 
 
         // Validate required fields based on action
@@ -1251,6 +1257,7 @@ export async function addLeagueRecord(req, res) {
             status = 'inactive', 
             season = new Date().getFullYear()
         } = req.body;
+        console.log(`🏆 [ADMIN] Add league record request - League: ${league_id}, Season: ${season}, Status: ${status}`);
 
 
         // Validate required fields - only league_id is required now
@@ -1391,6 +1398,7 @@ export async function addLeagueRecord(req, res) {
 export async function refreshLeague(req, res) {
     try {
         const { league_id, season = new Date().getFullYear() } = req.body;
+        console.log(`🔄 [ADMIN] Refresh league request - League: ${league_id}, Season: ${season}`);
 
         if (!league_id) {
             return res.status(400).json({ response: false, message: "Brak wymaganego pola: league_id" });
@@ -1511,6 +1519,7 @@ export async function refreshLeague(req, res) {
 // Get all leagues
 export async function getAllLeagues(req, res) {
     try {
+        console.log(`🏆 [ADMIN LEAGUES] Get all leagues request`);
         const leagues = await sql`
             SELECT * FROM leagues 
             ORDER BY created_at DESC
@@ -1533,6 +1542,7 @@ export async function getAllLeagues(req, res) {
 export async function getApiFootballLogs(req, res) {
     try {
         const { page = 1, limit = 50 } = req.query;
+        console.log(`📊 [ADMIN API LOGS] Get API logs request - Page: ${page}, Limit: ${limit}`);
         const offset = (page - 1) * limit;
 
         // Get total count

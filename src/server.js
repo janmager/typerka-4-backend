@@ -52,6 +52,7 @@ if (process.env.NODE_ENV === "production" || test) {
         leagueUpdateJob.start();
         logUpdateTimesJob.start();
         refreshUpdateTimesJob.start();
+        console.log('✅ [SERVER] League update cron jobs started');
     }).catch(error => {
         console.error('❌ [SERVER] Failed to initialize league update system:', error);
     });
@@ -60,7 +61,11 @@ if (process.env.NODE_ENV === "production" || test) {
 const PORT = process.env.PORT || 5001;
 
 // Initialize database
-initializeDatabase().catch(console.error);
+initializeDatabase().then(() => {
+    console.log('✅ [DATABASE] Database initialized successfully');
+}).catch(error => {
+    console.error('❌ [DATABASE] Failed to initialize database:', error);
+});
 
 // Routes
 app.use("/api/users", usersRoute);
@@ -76,9 +81,22 @@ app.use("/api/matches", matchesRoute);
 app.use("/api/activities", activitiesRoute);
 app.use("/api/bets", betsRoute);
 
+// Log all routes
+console.log('📋 [ROUTES] Available API endpoints:');
+console.log('  - /api/users - User management');
+console.log('  - /api/mailing - Email services');
+console.log('  - /api/admin - Admin operations');
+console.log('  - /api/tournaments - Tournament management');
+console.log('  - /api/matches - Match management');
+console.log('  - /api/activities - User activities');
+console.log('  - /api/bets - Betting system');
+console.log('  - /api/health - Health check');
+
 app.get("/api/health", (req, res) => {
     res.send("API is working fine.");
 });
 
 app.listen(PORT, () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+    console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });

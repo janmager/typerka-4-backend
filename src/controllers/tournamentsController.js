@@ -5,6 +5,7 @@ import { addActivityInternal } from "./activitiesController.js";
 export async function getAllTournaments(req, res) {
     try {
         const userId = req.query.user_id;
+        console.log(`🏆 [TOURNAMENTS] Get all tournaments request - User: ${userId}`);
         if (!userId) {
             return res.status(401).json({ response: false, message: 'Brak user_id' });
         }
@@ -265,6 +266,7 @@ export async function setActiveTournament(req, res) {
 // Admin: Get all tournaments (including inactive)
 export async function getAllTournamentsAdmin(req, res) {
     try {
+        console.log(`🏆 [ADMIN TOURNAMENTS] Get all tournaments request`);
         const tournaments = await sql`
             SELECT 
                 t.*,
@@ -332,7 +334,7 @@ export async function getAllTournamentsAdmin(req, res) {
 // Admin: Add new tournament
 export async function addTournament(req, res) {
     try {
-        const {
+        const { 
             name,
             slug,
             description,
@@ -347,6 +349,7 @@ export async function addTournament(req, res) {
             prize_pool = 0,
             created_by
         } = req.body;
+        console.log(`🏆 [ADMIN TOURNAMENTS] Add tournament request - Name: ${name}, League: ${league_id}`);
 
         // Add tournament request
 
@@ -447,6 +450,7 @@ export async function updateTournament(req, res) {
     try {
         const { tournament_id } = req.params;
         const updateData = req.body;
+        console.log(`🏆 [ADMIN TOURNAMENTS] Update tournament request - ID: ${tournament_id}`);
         
 
         // Update tournament request

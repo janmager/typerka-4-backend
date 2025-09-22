@@ -6,6 +6,7 @@ import { sendConfirmAccountEmailInternal, sendRequestPasswordResetEmailInternal,
 export async function createUser(req, res) {
   try {
     const { email, password } = req.body;
+    console.log(`👤 [USERS] Create user request - Email: ${email}`);
     
     // Validate required fields
     if (!email || !password) {
@@ -54,6 +55,8 @@ export async function createUser(req, res) {
       // Continue with user creation even if email fails
     }
 
+    console.log(`✅ [USERS] User created successfully - ID: ${user[0].user_id}, Email: ${email}`);
+    
     res.status(200).json({ 
       data: user[0], 
       response: true, 

@@ -10,3 +10,4 @@ router.post("/", createOrUpdateBet);
 router.get("/", getUserBets);
 
 export default router;
+

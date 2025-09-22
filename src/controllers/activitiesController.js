@@ -25,6 +25,7 @@ export async function addActivity(req, res) {
 export async function getActivities(req, res) {
   try {
     const { user_id } = req.query;
+    console.log(`📊 [ACTIVITIES] Get activities request - User: ${user_id}`);
     const limitRaw = req.query.limit ? Number(req.query.limit) : 10;
     const beforeRaw = req.query.before ? String(req.query.before) : null;
     const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(50, limitRaw)) : 10;

@@ -25,6 +25,7 @@ const createTransporter = () => {
 export async function sendContactMessage(req, res) {
     try {
         const { title, content, email_sender } = req.body;
+        console.log(`📧 [MAILING] Send contact message request - From: ${email_sender}, Title: ${title}`);
         
         // Validate required fields
         if (!title || !content || !email_sender) {
@@ -78,6 +79,8 @@ export async function sendContactMessage(req, res) {
         // Send email
         const info = await transporter.sendMail(mailOptions);
         
+        
+        console.log(`✅ [MAILING] Contact message sent successfully - Message ID: ${info.messageId}`);
         
         res.status(200).json({ 
             message: "Wiadomość kontaktowa została pomyślnie wysłana.", 
@@ -142,6 +145,8 @@ export async function sendConfirmAccountEmail(req, res) {
         const info = await transporter.sendMail(mailOptions);
         
         
+        console.log(`✅ [MAILING] Confirm account email sent successfully - Message ID: ${info.messageId}`);
+        
         res.status(200).json({ 
             message: "Email potwierdzenia konta został pomyślnie wysłany.", 
             response: true,
@@ -188,7 +193,7 @@ export async function sendConfirmAccountEmailInternal(user_id, email_token, emai
         
         // Send email
         const info = await transporter.sendMail(mailOptions);
-        
+        console.log(`✅ [MAILING] Internal confirm account email sent successfully - Message ID: ${info.messageId}`);
         
         return {
             success: true,
@@ -253,6 +258,8 @@ export async function sendNewPasswordEmail(req, res) {
         const info = await transporter.sendMail(mailOptions);
         
         
+        console.log(`✅ [MAILING] New password email sent successfully - Message ID: ${info.messageId}`);
+        
         res.status(200).json({ 
             message: "Email z nowym hasłem został pomyślnie wysłany.", 
             response: true,
@@ -316,6 +323,8 @@ export async function sendRequestPasswordResetEmail(req, res) {
         const info = await transporter.sendMail(mailOptions);
         
         
+        console.log(`✅ [MAILING] Password reset request email sent successfully - Message ID: ${info.messageId}`);
+        
         res.status(200).json({ 
             message: "Email żądania resetowania hasła został pomyślnie wysłany.", 
             response: true,
@@ -362,7 +371,7 @@ export async function sendRequestPasswordResetEmailInternal(email_receiver, user
         
         // Send email
         const info = await transporter.sendMail(mailOptions);
-        
+        console.log(`✅ [MAILING] Internal password reset request email sent successfully - Message ID: ${info.messageId}`);
         
         return {
             success: true,
@@ -427,6 +436,8 @@ export async function sendPasswordChangedEmail(req, res) {
         const info = await transporter.sendMail(mailOptions);
         
         
+        console.log(`✅ [MAILING] Password changed notification email sent successfully - Message ID: ${info.messageId}`);
+        
         res.status(200).json({ 
             message: "Email powiadomienia o zmianie hasła został pomyślnie wysłany.", 
             response: true,
@@ -473,7 +484,7 @@ export async function sendPasswordChangedEmailInternal(email_receiver) {
         
         // Send email
         const info = await transporter.sendMail(mailOptions);
-        
+        console.log(`✅ [MAILING] Internal password changed notification email sent successfully - Message ID: ${info.messageId}`);
         
         return {
             success: true,

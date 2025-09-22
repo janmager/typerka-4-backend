@@ -17,6 +17,7 @@ function getWarsawTodayStartPlusOneMinute() {
 export async function getAllMatches(req, res) {
     try {
         const { page = 1, limit = 5 } = req.query;
+        console.log(`⚽ [ADMIN MATCHES] Get all matches request - Page: ${page}, Limit: ${limit}`);
         const offset = (page - 1) * limit;
 
         // Get total count
@@ -86,6 +87,7 @@ export async function addMatch(req, res) {
             api_fixture_id
         } = req.body;
 
+        console.log(`⚽ [ADMIN MATCHES] Add match request - ${home_team} vs ${away_team}, League: ${league_id}`);
 
         // Validate required fields
         if (!home_team || !away_team || !league_id || !stadium || !match_date || !match_time) {
@@ -383,6 +385,7 @@ export async function getMatchById(req, res) {
 export async function addMatchFromApi(req, res) {
     try {
         const { fixture_data } = req.body;
+        console.log(`⚽ [ADMIN MATCHES] Add match from API request - Fixture ID: ${fixture_data?.fixture?.id}`);
 
 
         if (!fixture_data) {
@@ -604,6 +607,7 @@ export async function getMatchByApiFixtureId(req, res) {
 export async function getMatchesForActiveTournament(req, res) {
     try {
         const { user_id } = req.query;
+        console.log(`⚽ [MATCHES] Get matches for active tournament - User: ${user_id}`);
         const limitRaw = req.query.limit ? Number(req.query.limit) : 20;
         const beforeRaw = req.query.before ? String(req.query.before) : null;
         const filterStatusRaw = req.query.status ? String(req.query.status).toUpperCase() : null; // NS, FT, LIVE

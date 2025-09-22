@@ -3,6 +3,7 @@ import { sql } from "../config/db.js";
 // Get all teams (admin)
 export async function getAllTeams(req, res) {
     try {
+        console.log(`⚽ [TEAMS] Get all teams request`);
         const teams = await sql`
             SELECT * FROM teams 
             ORDER BY name ASC
@@ -24,16 +25,16 @@ export async function getAllTeams(req, res) {
 // Add new team
 export async function addTeam(req, res) {
     try {
-        const {
-            name,
-            slug,
-            logo,
-            label,
+        const { 
+            name, 
+            slug, 
+            logo, 
+            label, 
             country,
             api_team_id,
             api_team_name
         } = req.body;
-
+        console.log(`⚽ [ADMIN TEAMS] Add team request - Name: ${name}, Country: ${country}`);
 
         // Validate required fields
         if (!name || !slug || !logo || !label || !country) {
@@ -265,6 +266,7 @@ export async function getTeamById(req, res) {
 export async function addTeamFromApi(req, res) {
     try {
         const { api_team_id, name, logo } = req.body;
+        console.log(`⚽ [ADMIN TEAMS] Add team from API request - Name: ${name}, API ID: ${api_team_id}`);
 
 
         // Validate required fields

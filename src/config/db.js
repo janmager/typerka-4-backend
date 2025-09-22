@@ -143,6 +143,13 @@ export async function initializeDatabase() {
         await sql`CREATE UNIQUE INDEX IF NOT EXISTS tournaments_joins_unique ON tournaments_joins(tournament_id, user_id)`;
         await sql`CREATE INDEX IF NOT EXISTS tournaments_joins_user_idx ON tournaments_joins(user_id)`;
 
+        // Ensure matches.match_id has unique constraint for foreign key
+        try {
+            await sql`CREATE UNIQUE INDEX IF NOT EXISTS matches_match_id_unique ON matches(match_id)`;
+        } catch (error) {
+            // Index might already exist, continue
+        }
+
         // Create bets table
         await sql`
             CREATE TABLE IF NOT EXISTS bets (

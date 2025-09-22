@@ -18,6 +18,7 @@ async function logApiCall(description, url) {
 export async function fetchAndProcessFixtures(req, res) {
     try {
         const { league_id, season, from_date, to_date } = req.body;
+        console.log(`🔗 [API] Fetch and process fixtures request - League: ${league_id}, Season: ${season}`);
 
 
         // Validate required fields
@@ -139,6 +140,7 @@ async function processFixturesData(apiData) {
 export async function processApiFixtures(req, res) {
     try {
         const { fixtures_response } = req.body;
+        console.log(`🔗 [API] Process API fixtures request - Fixtures count: ${fixtures_response?.response?.length || 0}`);
 
 
         // Log the API call processing
