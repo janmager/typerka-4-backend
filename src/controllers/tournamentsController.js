@@ -22,6 +22,7 @@ export async function getAllTournaments(req, res) {
                 l.league_country,
                 l.logo as league_logo,
                 l.league_slug,
+                l.updated_at as league_updated_at,
                 (
                   SELECT COUNT(*)::int 
                   FROM tournaments_joins tjc 
@@ -60,7 +61,8 @@ export async function getAllTournaments(req, res) {
                         league_name: tournament.league_name,
                         league_country: tournament.league_country,
                         logo: tournament.league_logo,
-                        league_slug: tournament.league_slug
+                        league_slug: tournament.league_slug,
+                        updated_at: tournament.league_updated_at
                     },
                     joined: tournament.joined || false,
                     join_status: tournament.join_status || null,
@@ -269,7 +271,8 @@ export async function getAllTournamentsAdmin(req, res) {
                 l.league_name,
                 l.league_country,
                 l.logo as league_logo,
-                l.league_slug
+                l.league_slug,
+                l.updated_at as league_updated_at
             FROM tournaments t
             LEFT JOIN leagues l ON t.league_id = l.league_id::int
             ORDER BY t.created_at DESC
@@ -300,14 +303,15 @@ export async function getAllTournamentsAdmin(req, res) {
                         league_name: tournament.league_name,
                         league_country: tournament.league_country,
                         logo: tournament.league_logo,
-                        league_slug: tournament.league_slug
+                        league_slug: tournament.league_slug,
+                        updated_at: tournament.league_updated_at
                     },
                     matches: matches,
                     // Remove the individual league fields from the root object
                     league_name: undefined,
                     league_country: undefined,
                     league_logo: undefined,
-                    league_slug: undefined
+                    league_slug: undefined,
                 };
             })
         );
