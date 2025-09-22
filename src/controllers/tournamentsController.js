@@ -575,9 +575,6 @@ export async function updateTournament(req, res) {
         // WHERE placeholder index should be the next param index
         query += ` WHERE id = $${paramIndex} RETURNING *`;
 
-            paramIndex
-        });
-
         let result = [];
         if (updateFields.length > 0) {
             const filteredValues = updateValues.filter((_, i) => updateFields[i] !== 'updated_at');

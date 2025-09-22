@@ -142,6 +142,29 @@ export async function initializeDatabase() {
         // Ensure unique join per user/tournament and helpful indexes
         await sql`CREATE UNIQUE INDEX IF NOT EXISTS tournaments_joins_unique ON tournaments_joins(tournament_id, user_id)`;
         await sql`CREATE INDEX IF NOT EXISTS tournaments_joins_user_idx ON tournaments_joins(user_id)`;
+
+        // Create bets table
+        await sql`
+            CREATE TABLE IF NOT EXISTS bets (
+                id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+                match_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                home_bet INT,
+                away_bet INT,
+                status VARCHAR(255) NOT NULL DEFAULT 'pending',
+                points INT DEFAULT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours'),
+                updated_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '2 hours'),
+                CONSTRAINT bets_status_check CHECK (status IN ('pending','confirmed','blocked')),
+                CONSTRAINT bets_match_fk FOREIGN KEY (match_id) REFERENCES matches(match_id) ON DELETE CASCADE,
+                CONSTRAINT bets_user_fk FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+            )
+        `;
+        // Ensure unique bet per user/match and helpful indexes
+        await sql`CREATE UNIQUE INDEX IF NOT EXISTS bets_unique ON bets(match_id, user_id)`;
+        await sql`CREATE INDEX IF NOT EXISTS bets_user_idx ON bets(user_id)`;
+        await sql`CREATE INDEX IF NOT EXISTS bets_match_idx ON bets(match_id)`;
+        await sql`CREATE INDEX IF NOT EXISTS bets_status_idx ON bets(status)`;
         
         // Add constraints and indexes
         try {

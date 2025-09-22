@@ -21,10 +21,12 @@ import adminRoute from "./routes/adminRoute.js";
 import adminTournamentsRoute from "./routes/adminTournamentsRoute.js";
 import adminTeamsRoute from "./routes/adminTeamsRoute.js";
 import adminMatchesRoute from "./routes/adminMatchesRoute.js";
+import adminBetsRoute from "./routes/adminBetsRoute.js";
 import apiIntegrationRoute from "./routes/apiIntegrationRoute.js";
 import tournamentsRoute from "./routes/tournamentsRoute.js";
 import matchesRoute from "./routes/matchesRoute.js";
 import activitiesRoute from "./routes/activitiesRoute.js";
+import betsRoute from "./routes/betsRoute.js";
 
 dotenv.config();
 //
@@ -67,10 +69,12 @@ app.use("/api/admin", adminRoute);
 app.use("/api/admin", adminTournamentsRoute);
 app.use("/api/admin", adminTeamsRoute);
 app.use("/api/admin", adminMatchesRoute);
+app.use("/api/admin", adminBetsRoute);
 app.use("/api/admin", apiIntegrationRoute);
 app.use("/api/tournaments", tournamentsRoute);
 app.use("/api/matches", matchesRoute);
 app.use("/api/activities", activitiesRoute);
+app.use("/api/bets", betsRoute);
 
 app.get("/api/health", (req, res) => {
     res.send("API is working fine.");
