@@ -16,6 +16,16 @@ function getWarsawTodayStartPlusOneMinute() {
 // Get all matches with team details (admin)
 export async function getAllMatches(req, res) {
     try {
+        const { page = 1, limit = 5 } = req.query;
+        const offset = (page - 1) * limit;
+
+        // Get total count
+        const totalResult = await sql`
+            SELECT COUNT(*) as total FROM matches
+        `;
+        const total = parseInt(totalResult[0].total);
+
+        // Get matches with pagination
         const matches = await sql`
             SELECT 
                 m.*,
@@ -26,17 +36,27 @@ export async function getAllMatches(req, res) {
                 at.logo as away_team_logo,
                 at.label as away_team_label,
                 l.league_name,
-                l.league_country
+                l.league_country,
+                (m.match_date::timestamp + m.match_time) as dt
             FROM matches m
             LEFT JOIN teams ht ON m.home_team = ht.team_id
             LEFT JOIN teams at ON m.away_team = at.team_id
             LEFT JOIN leagues l ON m.league_id = l.league_id::int
             ORDER BY m.match_date DESC, m.match_time DESC
+            LIMIT ${limit} OFFSET ${offset}
         `;
 
         res.status(200).json({
             response: true,
-            data: matches
+            data: {
+                matches,
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total,
+                    totalPages: Math.ceil(total / limit)
+                }
+            }
         });
     } catch (error) {
         console.error('Error getting matches:', error);

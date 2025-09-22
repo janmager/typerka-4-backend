@@ -38,7 +38,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(rateLimiter);
 
-let test = true;
+let test = false;
 
 // cron jobs
 if (process.env.NODE_ENV === "production" || test) {

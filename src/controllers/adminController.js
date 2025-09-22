@@ -413,6 +413,8 @@ function getDatePartsInTZ(isoString, timeZone = 'Europe/Warsaw') {
 // Get all users with pagination and filtering
 export async function getAllUsers(req, res) {
     try {
+        console.log('getAllUsers called with query:', req.query);
+        
         const { 
             page = 1, 
             limit = 20, 
@@ -422,18 +424,27 @@ export async function getAllUsers(req, res) {
             admin_user_id 
         } = req.query;
 
+        console.log('Parsed params:', { page, limit, status, type, search, admin_user_id });
+
         // Check if admin_user_id is provided and is valid admin
         if (!admin_user_id) {
+            console.log('No admin_user_id provided');
             return res.status(400).json({ response: false, message: 'Brak admin_user_id' });
         }
 
+        console.log('Checking admin permissions for:', admin_user_id);
         const adminCheck = await sql`
             SELECT user_id, type FROM users WHERE user_id = ${admin_user_id}
         `;
         
+        console.log('Admin check result:', adminCheck);
+        
         if (adminCheck.length === 0 || adminCheck[0].type !== 'admin') {
+            console.log('Admin check failed');
             return res.status(403).json({ response: false, message: 'Brak uprawnień administratora' });
         }
+        
+        console.log('Admin check passed, proceeding with query...');
 
         const offset = (page - 1) * limit;
         
@@ -953,19 +964,26 @@ export async function getUserDetails(req, res) {
 
 export async function checkAdminUser(req, res, next) {
     try {
+        console.log('checkAdminUser middleware called for path:', req.path, 'method:', req.method);
+        console.log('Query params:', req.query);
+        console.log('Body params:', req.body);
+        
         // For user management endpoints, use admin_user_id; for others use user_id
         let user_id;
         if (req.path.includes('/users/') || req.path === '/users') {
             // For user management endpoints, always use admin_user_id
             user_id = req.method === 'GET' ? req.query.admin_user_id : req.body.admin_user_id;
+            console.log('Using admin_user_id for users endpoint:', user_id);
         } else {
             // For other endpoints, use user_id or admin_user_id
             user_id = req.method === 'GET' 
                 ? (req.query.user_id || req.query.admin_user_id)
                 : (req.body.user_id || req.body.admin_user_id);
+            console.log('Using user_id for other endpoint:', user_id);
         }
         
         if (!user_id) {
+            console.log('No user_id found, returning 400');
             return res.status(400).json({
                 response: false,
                 message: "Brak user_id lub admin_user_id"
