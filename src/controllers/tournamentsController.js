@@ -445,11 +445,9 @@ export async function addTournament(req, res) {
 // Admin: Update tournament
 export async function updateTournament(req, res) {
     try {
-        console.log('DEBUG: updateTournament called with:', req.params, req.body);
         const { tournament_id } = req.params;
         const updateData = req.body;
         
-        console.log('DEBUG: Initial updateData:', updateData);
 
         // Update tournament request
 
@@ -518,10 +516,8 @@ export async function updateTournament(req, res) {
         const updateFields = Object.keys(updateData).filter(k => updateData[k] !== undefined && allowedFields.has(k));
         const updateValues = updateFields.map(k => updateData[k]);
 
-        console.log('DEBUG: After filtering - updateFields:', updateFields, 'updateValues:', updateValues);
 
         if (updateFields.length === 0) {
-            console.log('DEBUG: No fields to update, returning error');
             return res.status(400).json({ response: false, message: 'Brak dozwolonych pól do aktualizacji' });
         }
 
@@ -579,17 +575,12 @@ export async function updateTournament(req, res) {
         // WHERE placeholder index should be the next param index
         query += ` WHERE id = $${paramIndex} RETURNING *`;
 
-        console.log('DEBUG updateTournament after filtering:', {
-            updateFields,
-            updateValues,
-            query,
             paramIndex
         });
 
         let result = [];
         if (updateFields.length > 0) {
             const filteredValues = updateValues.filter((_, i) => updateFields[i] !== 'updated_at');
-            console.log('DEBUG filtered values:', filteredValues);
             
             result = await sql.unsafe(
                 query,

@@ -8,7 +8,6 @@ let toUpdateTimes = [];
 // Funkcja do aktualizacji ligi (używa tej samej logiki co refreshLeague endpoint)
 async function updateLeagueData(league_id, season = new Date().getFullYear()) {
     try {
-        console.log(`🔄 [CRON] Rozpoczynam aktualizację ligi ${league_id} dla sezonu ${season}`);
         
         // Fetch fresh data from API-Football
         const leagueData = await fetchLeagueDetails(league_id, season);
@@ -56,7 +55,6 @@ async function updateLeagueData(league_id, season = new Date().getFullYear()) {
             try {
                 storedTeams = await storeTeams(leagueData.teams);
                 teamsCount = storedTeams.length;
-                console.log(`✅ [CRON] Zapisano ${teamsCount} drużyn dla ligi ${league_id}`);
             } catch (error) {
                 teamsError = error.message;
                 console.error(`❌ [CRON] Błąd podczas zapisywania drużyn dla ligi ${league_id}:`, error);
@@ -67,14 +65,12 @@ async function updateLeagueData(league_id, season = new Date().getFullYear()) {
             try {
                 storedMatches = await storeMatches(leagueData.fixtures);
                 matchesCount = storedMatches.length;
-                console.log(`✅ [CRON] Zapisano ${matchesCount} meczów dla ligi ${league_id}`);
             } catch (error) {
                 matchesError = error.message;
                 console.error(`❌ [CRON] Błąd podczas zapisywania meczów dla ligi ${league_id}:`, error);
             }
         }
 
-        console.log(`✅ [CRON] Pomyślnie zaktualizowano ligę ${league_id} (${teamsCount} drużyn, ${matchesCount} meczów)`);
         return true;
 
     } catch (error) {
@@ -89,20 +85,17 @@ function checkAndUpdateLeagues() {
     const warsawTime = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Warsaw"}));
     const currentTime = warsawTime.getHours().toString().padStart(2, '0') + ':' + warsawTime.getMinutes().toString().padStart(2, '0');
     
-    console.log(`🕐 [CRON] Sprawdzam aktualizacje o ${currentTime} (Warszawa)`);
     
     for (let i = 0; i < toUpdateTimes.length; i++) {
         const item = toUpdateTimes[i];
         
         if (item.time === currentTime && !item.updated_today) {
-            console.log(`⏰ [CRON] Znaleziono ligę do aktualizacji: ${item.league} o ${item.time}`);
             
             // Wykonaj aktualizację
             updateLeagueData(item.league).then(success => {
                 if (success) {
                     // Oznacz jako zaktualizowane dzisiaj
                     toUpdateTimes[i].updated_today = true;
-                    console.log(`✅ [CRON] Liga ${item.league} została zaktualizowana`);
                 }
             }).catch(error => {
                 console.error(`❌ [CRON] Błąd podczas aktualizacji ligi ${item.league}:`, error);
@@ -113,13 +106,11 @@ function checkAndUpdateLeagues() {
 
 // Funkcja do logowania toUpdateTimes co godzinę
 function logUpdateTimes() {
-    console.log('📋 [CRON] Aktualny stan toUpdateTimes:', JSON.stringify(toUpdateTimes, null, 2));
 }
 
 // Funkcja do pobierania update_times z tournaments codziennie o 00:01
 async function refreshUpdateTimes() {
     try {
-        console.log('🔄 [CRON] Pobieram update_times z tabeli tournaments...');
         
         const tournaments = await sql`
             SELECT league_id, update_times 
@@ -148,8 +139,6 @@ async function refreshUpdateTimes() {
             item.updated_today = false;
         });
         
-        console.log(`✅ [CRON] Załadowano ${toUpdateTimes.length} elementów do aktualizacji`);
-        console.log('📋 [CRON] Nowe toUpdateTimes:', JSON.stringify(toUpdateTimes, null, 2));
         
     } catch (error) {
         console.error('❌ [CRON] Błąd podczas pobierania update_times:', error);
@@ -163,7 +152,6 @@ export const refreshUpdateTimesJob = new cron.CronJob("0 1 0 * * *", refreshUpda
 
 // Funkcja do inicjalizacji (pobranie początkowych danych)
 export async function initializeLeagueUpdateSystem() {
-    console.log('🚀 [CRON] Inicjalizuję system aktualizacji lig...');
     await refreshUpdateTimes();
 }
 

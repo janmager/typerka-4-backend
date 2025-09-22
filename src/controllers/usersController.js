@@ -6,7 +6,6 @@ import { sendConfirmAccountEmailInternal, sendRequestPasswordResetEmailInternal,
 export async function createUser(req, res) {
   try {
     const { email, password } = req.body;
-    console.log("Creating user: ", email, password);
     
     // Validate required fields
     if (!email || !password) {
@@ -27,8 +26,6 @@ export async function createUser(req, res) {
 
     // Hash the password before storing
     const hashedPassword = hashPass(password);
-    console.log("Hashed password: ", hashedPassword, 'before: ', password);
-    console.log("Is password valid: ", comparePass(password, hashedPassword));
     
     const userId = crypto.randomUUID();
     const emailToken = crypto.randomUUID();
@@ -49,7 +46,6 @@ export async function createUser(req, res) {
       );
       
       if (emailResult.success) {
-        console.log('Confirmation email sent successfully:', emailResult.messageId);
       } else {
         console.error('Failed to send confirmation email:', emailResult.error);
       }
@@ -64,7 +60,6 @@ export async function createUser(req, res) {
       message: "Użytkownik został pomyślnie utworzony. Sprawdź swój email aby potwierdzić konto." 
     });
   } catch (e) {
-    console.log("Error creating user: ", e);
     
     // Handle specific database errors
     if (e.code === '23505') { // Unique constraint violation
@@ -126,7 +121,6 @@ export async function checkAuthUser(req, res) {
     });
     res.status(200).json({ data: updatedUser[0], response: true, message: "Użytkownik został pomyślnie uwierzytelniony." });
   } catch (e) {
-    console.log("Error getting user: ", e);
     res.status(500).json({ message: "Coś poszło nie tak.", response: false });
   }
 }
@@ -152,7 +146,6 @@ export async function getUser(req, res) {
     }
     res.status(200).json({ data: user[0], response: true, message: "Użytkownik został pomyślnie znaleziony." });
   } catch (e) {
-    console.log("Error getting user: ", e);
     res.status(500).json({ message: "Coś poszło nie tak.", response: false });
   }
 }
@@ -208,7 +201,6 @@ export async function confirmAccount(req, res) {
         RETURNING *
     `;
     
-    console.log('Account confirmed successfully for user:', user_id);
     
     // Activity: account confirmed
     addActivityInternal(updatedUser[0].user_id, {
@@ -225,7 +217,6 @@ export async function confirmAccount(req, res) {
     });
     
   } catch (e) {
-    console.log("Error confirming account: ", e);
     res.status(500).json({ 
       message: "Coś poszło nie tak podczas potwierdzania konta.", 
       response: false 
@@ -281,7 +272,6 @@ export async function resetPassword(req, res) {
       );
       
       if (emailResult.success) {
-        console.log('Password reset notification email sent successfully:', emailResult.messageId);
       } else {
         console.error('Failed to send password reset notification email:', emailResult.error);
       }
@@ -290,7 +280,6 @@ export async function resetPassword(req, res) {
       // Continue with password reset even if email fails
     }
     
-    console.log('Password reset successfully for user:', userEmail);
     
     // Activity: password reset
     addActivityInternal(user_id, {
@@ -306,7 +295,6 @@ export async function resetPassword(req, res) {
     });
     
   } catch (e) {
-    console.log("Error resetting password: ", e);
     res.status(500).json({ 
       message: "Coś poszło nie tak podczas resetowania hasła.", 
       response: false 
@@ -368,7 +356,6 @@ export async function requestResetPassword(req, res) {
       );
       
       if (emailResult.success) {
-        console.log('Password reset request email sent successfully:', emailResult.messageId);
       } else {
         console.error('Failed to send password reset request email:', emailResult.error);
       }
@@ -377,7 +364,6 @@ export async function requestResetPassword(req, res) {
       // Continue with token update even if email fails
     }
     
-    console.log('Password reset request processed for user:', email);
     
     res.status(200).json({ 
       message: "Żądanie resetowania hasła zostało przetworzone. Sprawdź swój email aby uzyskać dalsze instrukcje.", 
@@ -385,7 +371,6 @@ export async function requestResetPassword(req, res) {
     });
     
   } catch (e) {
-    console.log("Error processing password reset request: ", e);
     res.status(500).json({ 
       message: "Coś poszło nie tak podczas przetwarzania żądania resetowania hasła.", 
       response: false 
@@ -438,7 +423,6 @@ export async function changePassword(req, res) {
       );
       
       if (emailResult.success) {
-        console.log('Password changed notification email sent successfully:', emailResult.messageId);
       } else {
         console.error('Failed to send password changed notification email:', emailResult.error);
       }
@@ -447,7 +431,6 @@ export async function changePassword(req, res) {
       // Continue with password change even if email fails
     }
     
-    console.log('Password changed successfully for user:', user[0].email);
     
     // Activity: password changed
     addActivityInternal(user_id, {
@@ -463,7 +446,6 @@ export async function changePassword(req, res) {
     });
     
   } catch (e) {
-    console.log("Error changing password: ", e);
     res.status(500).json({ 
       message: "Coś poszło nie tak podczas zmiany hasła.", 
       response: false 
@@ -671,7 +653,6 @@ export async function editProfile(req, res) {
     });
     
   } catch (e) {
-    console.log("Error updating profile: ", e);
     res.status(500).json({ 
       message: "Coś poszło nie tak podczas aktualizacji profilu.", 
       response: false 
@@ -730,7 +711,6 @@ export async function deleteAccount(req, res) {
         RETURNING *
     `;
     
-    console.log('Account deleted successfully for user:', user_id);
     
     // Activity: account deleted
     addActivityInternal(user_id, {
@@ -746,7 +726,6 @@ export async function deleteAccount(req, res) {
     });
     
   } catch (e) {
-    console.log("Error deleting account: ", e);
     res.status(500).json({ 
       message: "Coś poszło nie tak podczas usuwania konta.", 
       response: false 
@@ -816,7 +795,6 @@ export async function editAvatar(req, res) {
       message: "Zapisano!" 
     });
   } catch (e) {
-    console.log("Error updating avatar: ", e);
     res.status(500).json({ message: "Coś poszło nie tak.", response: false });
   }
 }

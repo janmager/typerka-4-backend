@@ -19,7 +19,6 @@ export async function fetchTeamsForLeague(leagueId, season = new Date().getFullY
         const apiKey = process.env.API_FOOTBALL_KEY;
         const teamsUrl = `https://v3.football.api-sports.io/teams?league=${leagueId}&season=${season}`;
         
-        console.log(`Fetching teams for league ${leagueId}, season ${season}...`);
         
         // Log the API call
         await logApiCall(`Fetch teams - League: ${leagueId}, Season: ${season}`, teamsUrl);
@@ -50,7 +49,6 @@ export async function fetchFixturesForLeague(leagueId, season = new Date().getFu
     try {
         const apiKey = process.env.API_FOOTBALL_KEY;
         const url = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=${season}&timezone=Europe/Warsaw`;
-        console.log(`Fetching fixtures (single request, full season) for league ${leagueId}, season ${season}: ${url}`);
 
         // Log the API call
         await logApiCall(`Fetch fixtures - League: ${leagueId}, Season: ${season}`, url);
@@ -139,7 +137,6 @@ export async function storeTeams(teams) {
                 ) RETURNING *
             `;
             storedTeams.push(result[0]);
-            console.log(`Stored team: ${team.name}`);
         } catch (error) {
             console.error(`Error storing team ${team?.name || 'unknown'}:`, error.message);
             // Continue with the rest; don't throw to avoid stopping matches storage
@@ -164,7 +161,6 @@ export async function storeMatches(fixtures) {
             
             // Skip if essential data is missing
             if (!matchId || !homeTeamId || !awayTeamId || !leagueId) {
-                console.log(`Skipping match ${matchId}: missing essential data (homeTeamId: ${homeTeamId}, awayTeamId: ${awayTeamId}, leagueId: ${leagueId})`);
                 continue;
             }
 
@@ -179,7 +175,6 @@ export async function storeMatches(fixtures) {
             
             // Skip match if teams don't exist in our system
             if (homeTeamExists.length === 0 || awayTeamExists.length === 0) {
-                console.log(`Skipping match ${matchId}: teams not found in custom teams table (home: ${homeTeamId}, away: ${awayTeamId})`);
                 continue;
             }
 
@@ -193,7 +188,6 @@ export async function storeMatches(fixtures) {
                     matchDate = dt.date; // YYYY-MM-DD
                     matchTime = dt.time; // HH:MM:SS
                 } catch (dateError) {
-                    console.log(`Error parsing date for match ${matchId}:`, dateError);
                     matchDate = new Date().toISOString().split('T')[0]; // fallback to today (UTC)
                     matchTime = '00:00:00'; // fallback time
                 }
@@ -250,7 +244,6 @@ export async function storeMatches(fixtures) {
                     ) RETURNING *
                 `;
                 storedMatches.push(result[0]);
-                console.log(`Stored match: ${fixture.teams?.home?.name || 'Unknown'} vs ${fixture.teams?.away?.name || 'Unknown'} (ID: ${matchId})`);
             } else {
                 // Update existing match by id with new information
                 const existingId = existingMatch[0].id;
@@ -282,10 +275,8 @@ export async function storeMatches(fixtures) {
                     RETURNING *
                 `;
                 storedMatches.push(result[0]);
-                console.log(`Updated match: ${fixture.teams?.home?.name || 'Unknown'} vs ${fixture.teams?.away?.name || 'Unknown'} (ID: ${matchId})`);
             }
         } catch (error) {
-            console.log('fixture', fixture);
             console.error(`Error storing/updating match ${fixture.fixture?.id || 'unknown'}:`, error);
             // Don't throw error - continue processing other matches
             continue;
@@ -308,7 +299,6 @@ export async function fetchLeagueDetails(leagueId, season = new Date().getFullYe
         // First, try to get league info directly from leagues endpoint
         const leaguesUrl = `https://v3.football.api-sports.io/leagues?id=${leagueId}`;
         
-        console.log(`Fetching league details for ${leagueId}...`);
         
         // Log the API call
         await logApiCall(`Fetch league details - League ID: ${leagueId}`, leaguesUrl);
@@ -339,7 +329,6 @@ export async function fetchLeagueDetails(leagueId, season = new Date().getFullYe
                 fetchFixturesForLeague(leagueId, season)
             ]);
             
-            console.log(`League ${leagueId} found successfully. Name: ${league.name}, Country: ${country.name}, Teams: ${teams.length}, Fixtures: ${fixtures.length}`);
             
             // Create a slug from the league name
             const slug = league.name
@@ -365,7 +354,6 @@ export async function fetchLeagueDetails(leagueId, season = new Date().getFullYe
                 fixtures: fixtures
             };
         } else {
-            console.log(`League ${leagueId} not found in API-Football`);
             return { exists: false, error: 'League not found in API-Football' };
         }
 
@@ -413,7 +401,6 @@ function getDatePartsInTZ(isoString, timeZone = 'Europe/Warsaw') {
 // Get all users with pagination and filtering
 export async function getAllUsers(req, res) {
     try {
-        console.log('getAllUsers called with query:', req.query);
         
         const { 
             page = 1, 
@@ -424,27 +411,21 @@ export async function getAllUsers(req, res) {
             admin_user_id 
         } = req.query;
 
-        console.log('Parsed params:', { page, limit, status, type, search, admin_user_id });
 
         // Check if admin_user_id is provided and is valid admin
         if (!admin_user_id) {
-            console.log('No admin_user_id provided');
             return res.status(400).json({ response: false, message: 'Brak admin_user_id' });
         }
 
-        console.log('Checking admin permissions for:', admin_user_id);
         const adminCheck = await sql`
             SELECT user_id, type FROM users WHERE user_id = ${admin_user_id}
         `;
         
-        console.log('Admin check result:', adminCheck);
         
         if (adminCheck.length === 0 || adminCheck[0].type !== 'admin') {
-            console.log('Admin check failed');
             return res.status(403).json({ response: false, message: 'Brak uprawnień administratora' });
         }
         
-        console.log('Admin check passed, proceeding with query...');
 
         const offset = (page - 1) * limit;
         
@@ -964,26 +945,20 @@ export async function getUserDetails(req, res) {
 
 export async function checkAdminUser(req, res, next) {
     try {
-        console.log('checkAdminUser middleware called for path:', req.path, 'method:', req.method);
-        console.log('Query params:', req.query);
-        console.log('Body params:', req.body);
         
         // For user management endpoints, use admin_user_id; for others use user_id
         let user_id;
         if (req.path.includes('/users/') || req.path === '/users') {
             // For user management endpoints, always use admin_user_id
             user_id = req.method === 'GET' ? req.query.admin_user_id : req.body.admin_user_id;
-            console.log('Using admin_user_id for users endpoint:', user_id);
         } else {
             // For other endpoints, use user_id or admin_user_id
             user_id = req.method === 'GET' 
                 ? (req.query.user_id || req.query.admin_user_id)
                 : (req.body.user_id || req.body.admin_user_id);
-            console.log('Using user_id for other endpoint:', user_id);
         }
         
         if (!user_id) {
-            console.log('No user_id found, returning 400');
             return res.status(400).json({
                 response: false,
                 message: "Brak user_id lub admin_user_id"
@@ -1035,7 +1010,6 @@ export async function updateLeagueStatus(req, res) {
             action 
         } = req.body;
 
-        console.log("Update league status request:", req.body);
 
         // Validate required fields based on action
         if (action === 'add' || action === 'update') {
@@ -1099,7 +1073,6 @@ export async function updateLeagueStatus(req, res) {
                 }
 
                 // Verify league exists in API-Football before adding
-                console.log(`Verifying league ${league_id} in API-Football...`);
                 const verification = await verifyLeagueExists(league_id, new Date().getFullYear());
 
                 if (!verification.exists) {
@@ -1109,7 +1082,6 @@ export async function updateLeagueStatus(req, res) {
                     });
                 }
 
-                console.log(`League ${league_id} verified successfully. Adding to database...`);
 
                 result = await sql`
                     INSERT INTO leagues (
@@ -1280,7 +1252,6 @@ export async function addLeagueRecord(req, res) {
             season = new Date().getFullYear()
         } = req.body;
 
-        console.log("Add league record request:", req.body);
 
         // Validate required fields - only league_id is required now
         if (!league_id) {
@@ -1313,7 +1284,6 @@ export async function addLeagueRecord(req, res) {
         }
 
         // Fetch league details from API-Football
-        console.log(`Fetching league details for ${league_id} from API-Football...`);
         const leagueData = await fetchLeagueDetails(league_id, season);
 
         if (!leagueData.exists) {
@@ -1324,7 +1294,6 @@ export async function addLeagueRecord(req, res) {
         }
 
         const details = leagueData.leagueDetails;
-        console.log(`League ${league_id} found successfully. Adding to database with details:`, details);
 
         // Insert new league with data fetched from API-Football
         const result = await sql`
@@ -1348,22 +1317,18 @@ export async function addLeagueRecord(req, res) {
         // Try to store teams
         if (leagueData.teams && leagueData.teams.length > 0) {
             try {
-                console.log(`Storing ${leagueData.teams.length} teams...`);
                 storedTeams = await storeTeams(leagueData.teams);
                 teamsCount = storedTeams.length;
             } catch (error) {
-                console.log(`Teams table not compatible or doesn't exist, skipping teams storage:`, error.message);
                 teamsError = error.message;
             }
         }
         // Try to store matches
         if (leagueData.fixtures && leagueData.fixtures.length > 0) {
             try {
-                console.log(`Storing ${leagueData.fixtures.length} matches...`);
                 storedMatches = await storeMatches(leagueData.fixtures);
                 matchesCount = storedMatches.length;
             } catch (error) {
-                console.log(`Matches table not compatible or doesn't exist, skipping matches storage:`, error.message);
                 matchesError = error.message;
             }
         }

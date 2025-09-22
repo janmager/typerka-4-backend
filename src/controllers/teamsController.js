@@ -34,7 +34,6 @@ export async function addTeam(req, res) {
             api_team_name
         } = req.body;
 
-        console.log("Add team request:", req.body);
 
         // Validate required fields
         if (!name || !slug || !logo || !label || !country) {
@@ -103,7 +102,6 @@ export async function updateTeam(req, res) {
         const { team_id } = req.params;
         const updateData = req.body;
 
-        console.log("Update team request:", { team_id, updateData });
 
         // Remove user_id from update data as it's not part of team fields
         delete updateData.user_id;
@@ -191,7 +189,6 @@ export async function deleteTeam(req, res) {
     try {
         const { team_id } = req.params;
 
-        console.log("Delete team request:", { team_id });
 
         // Check if team is used in any matches
         const matchesCheck = await sql`
@@ -269,7 +266,6 @@ export async function addTeamFromApi(req, res) {
     try {
         const { api_team_id, name, logo } = req.body;
 
-        console.log("Add team from API request:", req.body);
 
         // Validate required fields
         if (!api_team_id || !name || !logo) {

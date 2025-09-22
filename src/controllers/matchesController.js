@@ -86,7 +86,6 @@ export async function addMatch(req, res) {
             api_fixture_id
         } = req.body;
 
-        console.log("Add match request:", req.body);
 
         // Validate required fields
         if (!home_team || !away_team || !league_id || !stadium || !match_date || !match_time) {
@@ -195,7 +194,6 @@ export async function updateMatch(req, res) {
         const { match_id } = req.params;
         const updateData = req.body;
 
-        console.log("Update match request:", { match_id, updateData });
 
         // Remove user_id from update data as it's not part of match fields
         delete updateData.user_id;
@@ -309,7 +307,6 @@ export async function deleteMatch(req, res) {
     try {
         const { match_id } = req.params;
 
-        console.log("Delete match request:", { match_id });
 
         const result = await sql`
             DELETE FROM matches 
@@ -387,7 +384,6 @@ export async function addMatchFromApi(req, res) {
     try {
         const { fixture_data } = req.body;
 
-        console.log("Add match from API request:", req.body);
 
         if (!fixture_data) {
             return res.status(400).json({

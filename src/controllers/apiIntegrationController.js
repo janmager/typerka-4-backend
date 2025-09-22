@@ -19,7 +19,6 @@ export async function fetchAndProcessFixtures(req, res) {
     try {
         const { league_id, season, from_date, to_date } = req.body;
 
-        console.log("Fetch fixtures request:", req.body);
 
         // Validate required fields
         if (!league_id || !season) {
@@ -141,7 +140,6 @@ export async function processApiFixtures(req, res) {
     try {
         const { fixtures_response } = req.body;
 
-        console.log("Processing API fixtures:", req.body);
 
         // Log the API call processing
         const fixtureCount = fixtures_response?.response?.length || 0;

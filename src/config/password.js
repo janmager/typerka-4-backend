@@ -6,11 +6,9 @@ export const hashPass = (password) => {
     let saltRounds = parseInt(process.env.HASHPASSWORD);
     
     if (isNaN(saltRounds) || saltRounds < 4 || saltRounds > 15) {
-        console.log('Invalid HASHPASSWORD environment variable, using default salt rounds: 10');
         saltRounds = 10;
     }
     
-    console.log('Using salt rounds:', saltRounds);
     return bcrypt.hashSync(password, saltRounds);
 }
 

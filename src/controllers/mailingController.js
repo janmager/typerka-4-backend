@@ -49,7 +49,6 @@ export async function sendContactMessage(req, res) {
         // Verify transporter configuration
         try {
             await transporter.verify();
-            console.log('SMTP connection verified successfully');
         } catch (error) {
             console.error('SMTP configuration error:', error);
             return res.status(500).json({ 
@@ -79,7 +78,6 @@ export async function sendContactMessage(req, res) {
         // Send email
         const info = await transporter.sendMail(mailOptions);
         
-        console.log('Contact email sent:', info.messageId);
         
         res.status(200).json({ 
             message: "Wiadomość kontaktowa została pomyślnie wysłana.", 
@@ -123,7 +121,6 @@ export async function sendConfirmAccountEmail(req, res) {
         // Verify transporter configuration
         try {
             await transporter.verify();
-            console.log('SMTP connection verified successfully for account confirmation');
         } catch (error) {
             console.error('SMTP configuration error:', error);
             return res.status(500).json({ 
@@ -144,7 +141,6 @@ export async function sendConfirmAccountEmail(req, res) {
         // Send email
         const info = await transporter.sendMail(mailOptions);
         
-        console.log('Account confirmation email sent:', info.messageId);
         
         res.status(200).json({ 
             message: "Email potwierdzenia konta został pomyślnie wysłany.", 
@@ -180,7 +176,6 @@ export async function sendConfirmAccountEmailInternal(user_id, email_token, emai
         
         // Verify transporter configuration
         await transporter.verify();
-        console.log('SMTP connection verified successfully for account confirmation');
         
         // Email content using template
         const mailOptions = {
@@ -194,7 +189,6 @@ export async function sendConfirmAccountEmailInternal(user_id, email_token, emai
         // Send email
         const info = await transporter.sendMail(mailOptions);
         
-        console.log('Account confirmation email sent:', info.messageId);
         
         return {
             success: true,
@@ -238,7 +232,6 @@ export async function sendNewPasswordEmail(req, res) {
         // Verify transporter configuration
         try {
             await transporter.verify();
-            console.log('SMTP connection verified successfully for new password email');
         } catch (error) {
             console.error('SMTP configuration error:', error);
             return res.status(500).json({ 
@@ -259,7 +252,6 @@ export async function sendNewPasswordEmail(req, res) {
         // Send email
         const info = await transporter.sendMail(mailOptions);
         
-        console.log('New password email sent:', info.messageId);
         
         res.status(200).json({ 
             message: "Email z nowym hasłem został pomyślnie wysłany.", 
@@ -303,7 +295,6 @@ export async function sendRequestPasswordResetEmail(req, res) {
         // Verify transporter configuration
         try {
             await transporter.verify();
-            console.log('SMTP connection verified successfully for password reset request email');
         } catch (error) {
             console.error('SMTP configuration error:', error);
             return res.status(500).json({ 
@@ -324,7 +315,6 @@ export async function sendRequestPasswordResetEmail(req, res) {
         // Send email
         const info = await transporter.sendMail(mailOptions);
         
-        console.log('Password reset request email sent:', info.messageId);
         
         res.status(200).json({ 
             message: "Email żądania resetowania hasła został pomyślnie wysłany.", 
@@ -360,7 +350,6 @@ export async function sendRequestPasswordResetEmailInternal(email_receiver, user
         
         // Verify transporter configuration
         await transporter.verify();
-        console.log('SMTP connection verified successfully for password reset request email');
         
         // Email content using template
         const mailOptions = {
@@ -374,7 +363,6 @@ export async function sendRequestPasswordResetEmailInternal(email_receiver, user
         // Send email
         const info = await transporter.sendMail(mailOptions);
         
-        console.log('Password reset request email sent:', info.messageId);
         
         return {
             success: true,
@@ -418,7 +406,6 @@ export async function sendPasswordChangedEmail(req, res) {
         // Verify transporter configuration
         try {
             await transporter.verify();
-            console.log('SMTP connection verified successfully for password changed email');
         } catch (error) {
             console.error('SMTP configuration error:', error);
             return res.status(500).json({ 
@@ -439,7 +426,6 @@ export async function sendPasswordChangedEmail(req, res) {
         // Send email
         const info = await transporter.sendMail(mailOptions);
         
-        console.log('Password changed email sent:', info.messageId);
         
         res.status(200).json({ 
             message: "Email powiadomienia o zmianie hasła został pomyślnie wysłany.", 
@@ -475,7 +461,6 @@ export async function sendPasswordChangedEmailInternal(email_receiver) {
         
         // Verify transporter configuration
         await transporter.verify();
-        console.log('SMTP connection verified successfully for password changed email');
         
         // Email content using template
         const mailOptions = {
@@ -489,7 +474,6 @@ export async function sendPasswordChangedEmailInternal(email_receiver) {
         // Send email
         const info = await transporter.sendMail(mailOptions);
         
-        console.log('Password changed email sent:', info.messageId);
         
         return {
             success: true,

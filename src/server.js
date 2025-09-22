@@ -50,7 +50,6 @@ if (process.env.NODE_ENV === "production" || test) {
         leagueUpdateJob.start();
         logUpdateTimesJob.start();
         refreshUpdateTimesJob.start();
-        console.log('✅ [SERVER] League update cron jobs started');
     }).catch(error => {
         console.error('❌ [SERVER] Failed to initialize league update system:', error);
     });
@@ -78,5 +77,4 @@ app.get("/api/health", (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log("Server is up and running on PORT: ", PORT);
 });
