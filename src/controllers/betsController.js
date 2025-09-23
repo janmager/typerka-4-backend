@@ -30,14 +30,18 @@ export async function createOrUpdateBet(req, res) {
             });
         }
 
-        if (home_bet !== undefined && (home_bet < 0 || home_bet > 20)) {
+        // Convert to numbers for validation
+        const homeBetNum = home_bet !== undefined ? parseInt(home_bet) : undefined;
+        const awayBetNum = away_bet !== undefined ? parseInt(away_bet) : undefined;
+
+        if (home_bet !== undefined && (isNaN(homeBetNum) || homeBetNum < 0 || homeBetNum > 20)) {
             return res.status(400).json({
                 response: false,
                 message: "Typ na gospodarza musi być między 0 a 20"
             });
         }
 
-        if (away_bet !== undefined && (away_bet < 0 || away_bet > 20)) {
+        if (away_bet !== undefined && (isNaN(awayBetNum) || awayBetNum < 0 || awayBetNum > 20)) {
             return res.status(400).json({
                 response: false,
                 message: "Typ na gościa musi być między 0 a 20"
@@ -91,8 +95,8 @@ export async function createOrUpdateBet(req, res) {
             // Update existing bet
             result = await sql`
                 UPDATE bets SET
-                    home_bet = ${home_bet},
-                    away_bet = ${away_bet},
+                    home_bet = ${homeBetNum},
+                    away_bet = ${awayBetNum},
                     updated_at = NOW() + INTERVAL '2 hours'
                 WHERE match_id = ${match_id} AND user_id = ${user_id}
                 RETURNING *
@@ -101,7 +105,7 @@ export async function createOrUpdateBet(req, res) {
             // Create new bet
             result = await sql`
                 INSERT INTO bets (match_id, user_id, home_bet, away_bet)
-                VALUES (${match_id}, ${user_id}, ${home_bet}, ${away_bet})
+                VALUES (${match_id}, ${user_id}, ${homeBetNum}, ${awayBetNum})
                 RETURNING *
             `;
         }
@@ -240,52 +244,43 @@ export async function getAllBets(req, res) {
             match_id = ''
         } = req.query;
 
+        console.log(`🎯 [ADMIN-BETS] Get all bets request - Page: ${page}, Limit: ${limit}, Status: ${status}, User ID: ${user_id}, Match ID: ${match_id}`);
+
         const offset = (page - 1) * limit;
 
-        // Build WHERE conditions
-        let whereConditions = [];
-        let params = [];
-
-        if (status !== 'all') {
-            whereConditions.push(`b.status = $${params.length + 1}`);
-            params.push(status);
-        }
-
-        if (user_id) {
-            whereConditions.push(`b.user_id ILIKE $${params.length + 1}`);
-            params.push(`%${user_id}%`);
-        }
-
-        if (match_id) {
-            whereConditions.push(`b.match_id ILIKE $${params.length + 1}`);
-            params.push(`%${match_id}%`);
-        }
-
-        const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
-
-        const bets = await sql.unsafe(`
+        // Simple query to get all bets with joins
+        const bets = await sql`
             SELECT 
                 b.*,
-                u.name as user_name, u.email as user_email,
-                m.home_team, m.away_team, m.actual_home_score, m.actual_away_score,
-                m.match_date, m.match_time, m.status as match_status,
-                ht.name as home_team_name, ht.logo as home_team_logo,
-                at.name as away_team_name, at.logo as away_team_logo
+                u.name as user_name, 
+                u.email as user_email,
+                m.home_team, 
+                m.away_team, 
+                m.actual_home_score, 
+                m.actual_away_score,
+                m.match_date, 
+                m.match_time, 
+                m.status as match_status,
+                ht.name as home_team_name, 
+                ht.logo as home_team_logo,
+                at.name as away_team_name, 
+                at.logo as away_team_logo
             FROM bets b
             JOIN users u ON b.user_id = u.user_id
             JOIN matches m ON b.match_id = m.match_id
             LEFT JOIN teams ht ON m.home_team = ht.team_id
             LEFT JOIN teams at ON m.away_team = at.team_id
-            ${whereClause}
             ORDER BY b.created_at DESC
-            LIMIT $${params.length + 1} OFFSET $${params.length + 2}
-        `, [...params, limit, offset]);
+            LIMIT ${limit} OFFSET ${offset}
+        `;
 
-        const totalCount = await sql.unsafe(`
+        // Get total count
+        const totalCount = await sql`
             SELECT COUNT(*) as count
             FROM bets b
-            ${whereClause}
-        `, params);
+        `;
+
+        console.log(`✅ [ADMIN-BETS] Bets retrieved successfully - Count: ${bets.length}, Total: ${totalCount[0].count}`);
 
         return res.status(200).json({
             response: true,

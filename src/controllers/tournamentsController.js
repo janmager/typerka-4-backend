@@ -42,6 +42,8 @@ export async function getAllTournaments(req, res) {
             tournaments.map(async (tournament) => {
                 // Get matches information (if matches table exists)
                 let matches = [];
+                let leagueMatchesCount = 0;
+                
                 if (tournament.matches && tournament.matches.length > 0) {
                     try {
                         const matchesData = await sql`
@@ -54,6 +56,34 @@ export async function getAllTournaments(req, res) {
                         // Matches table might not exist yet, ignore error
                         // Matches table not found, skipping matches data
                     }
+                }
+
+                // Get total matches count for the league
+                try {
+                    const leagueMatchesResult = await sql`
+                        SELECT COUNT(*) as total
+                        FROM matches 
+                        WHERE league_id = ${tournament.league_id}
+                    `;
+                    leagueMatchesCount = parseInt(leagueMatchesResult[0]?.total || 0);
+                } catch (error) {
+                    // Matches table might not exist yet, ignore error
+                    leagueMatchesCount = 0;
+                }
+
+                // Get finished matches count for the league
+                let finishedMatchesCount = 0;
+                try {
+                    const finishedMatchesResult = await sql`
+                        SELECT COUNT(*) as total
+                        FROM matches 
+                        WHERE league_id = ${tournament.league_id} 
+                        AND status IN ('FT', 'AET', 'PEN', 'CANC', 'AWD')
+                    `;
+                    finishedMatchesCount = parseInt(finishedMatchesResult[0]?.total || 0);
+                } catch (error) {
+                    // Matches table might not exist yet, ignore error
+                    finishedMatchesCount = 0;
                 }
 
                 return {
@@ -71,6 +101,8 @@ export async function getAllTournaments(req, res) {
                     join_points: tournament.join_points ?? 0,
                     join_count: tournament.join_count || 0,
                     matches: matches,
+                    league_matches_count: leagueMatchesCount,
+                    league_finished_matches_count: finishedMatchesCount,
                     // Remove the individual league fields from the root object
                     league_name: undefined,
                     league_country: undefined,
@@ -280,7 +312,7 @@ export async function getAllTournamentsAdmin(req, res) {
             ORDER BY t.created_at DESC
         `;
 
-        // Fetch matches for each tournament
+        // Fetch matches and participants for each tournament
         const tournamentsWithRelations = await Promise.all(
             tournaments.map(async (tournament) => {
                 // Get matches information (if matches table exists)
@@ -299,6 +331,29 @@ export async function getAllTournamentsAdmin(req, res) {
                     }
                 }
 
+                // Get participants count by status
+                let activeParticipants = 0;
+                let pendingParticipants = 0;
+                try {
+                    const participantsData = await sql`
+                        SELECT status, COUNT(*) as count
+                        FROM tournaments_joins 
+                        WHERE tournament_id = ${tournament.id.toString()}
+                        GROUP BY status
+                    `;
+                    
+                    participantsData.forEach(row => {
+                        if (row.status === 'active') {
+                            activeParticipants = parseInt(row.count);
+                        } else if (row.status === 'pending') {
+                            pendingParticipants = parseInt(row.count);
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error getting participants count:', error);
+                    // Tournaments_joins table might not exist yet, ignore error
+                }
+
                 return {
                     ...tournament,
                     league: {
@@ -309,6 +364,8 @@ export async function getAllTournamentsAdmin(req, res) {
                         updated_at: tournament.league_updated_at
                     },
                     matches: matches,
+                    active_participants: activeParticipants,
+                    pending_participants: pendingParticipants,
                     // Remove the individual league fields from the root object
                     league_name: undefined,
                     league_country: undefined,

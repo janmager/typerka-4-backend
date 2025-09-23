@@ -520,10 +520,25 @@ export async function getAllUsers(req, res) {
                     u.avatar,
                     u.register_at,
                     u.logged_at as last_login,
-                    0 as tournaments_count,
-                    0 as predictions_count,
-                    0 as total_points
+                    COALESCE(tournament_stats.tournaments_count, 0) as tournaments_count,
+                    COALESCE(prediction_stats.predictions_count, 0) as predictions_count,
+                    COALESCE(prediction_stats.total_points, 0) as total_points
                 FROM users u
+                LEFT JOIN (
+                    SELECT 
+                        user_id,
+                        COUNT(*) as tournaments_count
+                    FROM tournaments_joins 
+                    GROUP BY user_id
+                ) tournament_stats ON u.user_id = tournament_stats.user_id
+                LEFT JOIN (
+                    SELECT 
+                        user_id,
+                        COUNT(*) as predictions_count,
+                        SUM(points) as total_points
+                    FROM bets 
+                    GROUP BY user_id
+                ) prediction_stats ON u.user_id = prediction_stats.user_id
                 ORDER BY u.register_at DESC
                 LIMIT ${limit} OFFSET ${offset}
             `;
@@ -536,29 +551,29 @@ export async function getAllUsers(req, res) {
                     u.type,
                     u.state,
                     u.avatar,
-                    u.created_at as register_at,
-                    u.last_login,
+                    u.register_at,
+                    u.logged_at as last_login,
                     COALESCE(tournament_stats.tournaments_count, 0) as tournaments_count,
                     COALESCE(prediction_stats.predictions_count, 0) as predictions_count,
                     COALESCE(prediction_stats.total_points, 0) as total_points
                 FROM users u
                 LEFT JOIN (
                     SELECT 
-                        created_by as user_id,
+                        user_id,
                         COUNT(*) as tournaments_count
-                    FROM tournaments 
-                    GROUP BY created_by
+                    FROM tournaments_joins 
+                    GROUP BY user_id
                 ) tournament_stats ON u.user_id = tournament_stats.user_id
                 LEFT JOIN (
                     SELECT 
                         user_id,
                         COUNT(*) as predictions_count,
                         SUM(points) as total_points
-                    FROM predictions 
+                    FROM bets 
                     GROUP BY user_id
                 ) prediction_stats ON u.user_id = prediction_stats.user_id
                 WHERE u.state = ${status} AND u.type = ${type} AND (u.name ILIKE ${`%${search.trim()}%`} OR u.email ILIKE ${`%${search.trim()}%`})
-                ORDER BY u.created_at DESC
+                ORDER BY u.register_at DESC
                 LIMIT ${limit} OFFSET ${offset}
             `;
         } else if (status !== 'all' && type !== 'all') {
@@ -570,29 +585,29 @@ export async function getAllUsers(req, res) {
                     u.type,
                     u.state,
                     u.avatar,
-                    u.created_at as register_at,
-                    u.last_login,
+                    u.register_at,
+                    u.logged_at as last_login,
                     COALESCE(tournament_stats.tournaments_count, 0) as tournaments_count,
                     COALESCE(prediction_stats.predictions_count, 0) as predictions_count,
                     COALESCE(prediction_stats.total_points, 0) as total_points
                 FROM users u
                 LEFT JOIN (
                     SELECT 
-                        created_by as user_id,
+                        user_id,
                         COUNT(*) as tournaments_count
-                    FROM tournaments 
-                    GROUP BY created_by
+                    FROM tournaments_joins 
+                    GROUP BY user_id
                 ) tournament_stats ON u.user_id = tournament_stats.user_id
                 LEFT JOIN (
                     SELECT 
                         user_id,
                         COUNT(*) as predictions_count,
                         SUM(points) as total_points
-                    FROM predictions 
+                    FROM bets 
                     GROUP BY user_id
                 ) prediction_stats ON u.user_id = prediction_stats.user_id
                 WHERE u.state = ${status} AND u.type = ${type}
-                ORDER BY u.created_at DESC
+                ORDER BY u.register_at DESC
                 LIMIT ${limit} OFFSET ${offset}
             `;
         } else if (status !== 'all' && search && search.trim()) {
@@ -604,29 +619,29 @@ export async function getAllUsers(req, res) {
                     u.type,
                     u.state,
                     u.avatar,
-                    u.created_at as register_at,
-                    u.last_login,
+                    u.register_at,
+                    u.logged_at as last_login,
                     COALESCE(tournament_stats.tournaments_count, 0) as tournaments_count,
                     COALESCE(prediction_stats.predictions_count, 0) as predictions_count,
                     COALESCE(prediction_stats.total_points, 0) as total_points
                 FROM users u
                 LEFT JOIN (
                     SELECT 
-                        created_by as user_id,
+                        user_id,
                         COUNT(*) as tournaments_count
-                    FROM tournaments 
-                    GROUP BY created_by
+                    FROM tournaments_joins 
+                    GROUP BY user_id
                 ) tournament_stats ON u.user_id = tournament_stats.user_id
                 LEFT JOIN (
                     SELECT 
                         user_id,
                         COUNT(*) as predictions_count,
                         SUM(points) as total_points
-                    FROM predictions 
+                    FROM bets 
                     GROUP BY user_id
                 ) prediction_stats ON u.user_id = prediction_stats.user_id
                 WHERE u.state = ${status} AND (u.name ILIKE ${`%${search.trim()}%`} OR u.email ILIKE ${`%${search.trim()}%`})
-                ORDER BY u.created_at DESC
+                ORDER BY u.register_at DESC
                 LIMIT ${limit} OFFSET ${offset}
             `;
         } else if (type !== 'all' && search && search.trim()) {
@@ -638,29 +653,29 @@ export async function getAllUsers(req, res) {
                     u.type,
                     u.state,
                     u.avatar,
-                    u.created_at as register_at,
-                    u.last_login,
+                    u.register_at,
+                    u.logged_at as last_login,
                     COALESCE(tournament_stats.tournaments_count, 0) as tournaments_count,
                     COALESCE(prediction_stats.predictions_count, 0) as predictions_count,
                     COALESCE(prediction_stats.total_points, 0) as total_points
                 FROM users u
                 LEFT JOIN (
                     SELECT 
-                        created_by as user_id,
+                        user_id,
                         COUNT(*) as tournaments_count
-                    FROM tournaments 
-                    GROUP BY created_by
+                    FROM tournaments_joins 
+                    GROUP BY user_id
                 ) tournament_stats ON u.user_id = tournament_stats.user_id
                 LEFT JOIN (
                     SELECT 
                         user_id,
                         COUNT(*) as predictions_count,
                         SUM(points) as total_points
-                    FROM predictions 
+                    FROM bets 
                     GROUP BY user_id
                 ) prediction_stats ON u.user_id = prediction_stats.user_id
                 WHERE u.type = ${type} AND (u.name ILIKE ${`%${search.trim()}%`} OR u.email ILIKE ${`%${search.trim()}%`})
-                ORDER BY u.created_at DESC
+                ORDER BY u.register_at DESC
                 LIMIT ${limit} OFFSET ${offset}
             `;
         } else if (status !== 'all') {
@@ -672,29 +687,29 @@ export async function getAllUsers(req, res) {
                     u.type,
                     u.state,
                     u.avatar,
-                    u.created_at as register_at,
-                    u.last_login,
+                    u.register_at,
+                    u.logged_at as last_login,
                     COALESCE(tournament_stats.tournaments_count, 0) as tournaments_count,
                     COALESCE(prediction_stats.predictions_count, 0) as predictions_count,
                     COALESCE(prediction_stats.total_points, 0) as total_points
                 FROM users u
                 LEFT JOIN (
                     SELECT 
-                        created_by as user_id,
+                        user_id,
                         COUNT(*) as tournaments_count
-                    FROM tournaments 
-                    GROUP BY created_by
+                    FROM tournaments_joins 
+                    GROUP BY user_id
                 ) tournament_stats ON u.user_id = tournament_stats.user_id
                 LEFT JOIN (
                     SELECT 
                         user_id,
                         COUNT(*) as predictions_count,
                         SUM(points) as total_points
-                    FROM predictions 
+                    FROM bets 
                     GROUP BY user_id
                 ) prediction_stats ON u.user_id = prediction_stats.user_id
                 WHERE u.state = ${status}
-                ORDER BY u.created_at DESC
+                ORDER BY u.register_at DESC
                 LIMIT ${limit} OFFSET ${offset}
             `;
         } else if (type !== 'all') {
@@ -706,29 +721,29 @@ export async function getAllUsers(req, res) {
                     u.type,
                     u.state,
                     u.avatar,
-                    u.created_at as register_at,
-                    u.last_login,
+                    u.register_at,
+                    u.logged_at as last_login,
                     COALESCE(tournament_stats.tournaments_count, 0) as tournaments_count,
                     COALESCE(prediction_stats.predictions_count, 0) as predictions_count,
                     COALESCE(prediction_stats.total_points, 0) as total_points
                 FROM users u
                 LEFT JOIN (
                     SELECT 
-                        created_by as user_id,
+                        user_id,
                         COUNT(*) as tournaments_count
-                    FROM tournaments 
-                    GROUP BY created_by
+                    FROM tournaments_joins 
+                    GROUP BY user_id
                 ) tournament_stats ON u.user_id = tournament_stats.user_id
                 LEFT JOIN (
                     SELECT 
                         user_id,
                         COUNT(*) as predictions_count,
                         SUM(points) as total_points
-                    FROM predictions 
+                    FROM bets 
                     GROUP BY user_id
                 ) prediction_stats ON u.user_id = prediction_stats.user_id
                 WHERE u.type = ${type}
-                ORDER BY u.created_at DESC
+                ORDER BY u.register_at DESC
                 LIMIT ${limit} OFFSET ${offset}
             `;
         } else if (search && search.trim()) {
@@ -740,29 +755,29 @@ export async function getAllUsers(req, res) {
                     u.type,
                     u.state,
                     u.avatar,
-                    u.created_at as register_at,
-                    u.last_login,
+                    u.register_at,
+                    u.logged_at as last_login,
                     COALESCE(tournament_stats.tournaments_count, 0) as tournaments_count,
                     COALESCE(prediction_stats.predictions_count, 0) as predictions_count,
                     COALESCE(prediction_stats.total_points, 0) as total_points
                 FROM users u
                 LEFT JOIN (
                     SELECT 
-                        created_by as user_id,
+                        user_id,
                         COUNT(*) as tournaments_count
-                    FROM tournaments 
-                    GROUP BY created_by
+                    FROM tournaments_joins 
+                    GROUP BY user_id
                 ) tournament_stats ON u.user_id = tournament_stats.user_id
                 LEFT JOIN (
                     SELECT 
                         user_id,
                         COUNT(*) as predictions_count,
                         SUM(points) as total_points
-                    FROM predictions 
+                    FROM bets 
                     GROUP BY user_id
                 ) prediction_stats ON u.user_id = prediction_stats.user_id
                 WHERE u.name ILIKE ${`%${search.trim()}%`} OR u.email ILIKE ${`%${search.trim()}%`}
-                ORDER BY u.created_at DESC
+                ORDER BY u.register_at DESC
                 LIMIT ${limit} OFFSET ${offset}
             `;
         }
@@ -858,6 +873,73 @@ export async function updateUserStatus(req, res) {
         return res.status(500).json({
             response: false,
             message: 'Błąd serwera podczas aktualizacji statusu użytkownika'
+        });
+    }
+}
+
+// Get admin dashboard statistics
+export async function getAdminStats(req, res) {
+    try {
+        const { admin_user_id } = req.query;
+        console.log(`📊 [ADMIN] Get admin stats request`);
+
+        if (!admin_user_id) {
+            return res.status(400).json({
+                response: false,
+                message: 'Brak wymaganych pól: admin_user_id'
+            });
+        }
+
+        // Check if admin_user_id is valid admin
+        const adminCheck = await sql`
+            SELECT user_id, type FROM users WHERE user_id = ${admin_user_id}
+        `;
+        
+        if (adminCheck.length === 0 || adminCheck[0].type !== 'admin') {
+            return res.status(403).json({ response: false, message: 'Brak uprawnień administratora' });
+        }
+
+        // Get total users count
+        const totalUsersResult = await sql`
+            SELECT COUNT(*) as total FROM users
+        `;
+        const totalUsers = parseInt(totalUsersResult[0].total);
+
+        // Get active users count
+        const activeUsersResult = await sql`
+            SELECT COUNT(*) as total FROM users WHERE state = 'active'
+        `;
+        const activeUsers = parseInt(activeUsersResult[0].total);
+
+        // Get total tournament joins count
+        const totalTournamentJoinsResult = await sql`
+            SELECT COUNT(*) as total FROM tournaments_joins
+        `;
+        const totalTournamentJoins = parseInt(totalTournamentJoinsResult[0].total);
+
+        // Get total bets count
+        const totalBetsResult = await sql`
+            SELECT COUNT(*) as total FROM bets
+        `;
+        const totalBets = parseInt(totalBetsResult[0].total);
+
+        console.log(`✅ [ADMIN] Stats retrieved successfully - Users: ${totalUsers}, Active: ${activeUsers}, Tournament Joins: ${totalTournamentJoins}, Bets: ${totalBets}`);
+        
+        return res.status(200).json({
+            response: true,
+            data: {
+                totalUsers,
+                activeUsers,
+                totalTournamentJoins,
+                totalBets
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching admin stats:', error);
+        return res.status(500).json({
+            response: false,
+            message: 'Błąd serwera podczas pobierania statystyk'
         });
     }
 }
