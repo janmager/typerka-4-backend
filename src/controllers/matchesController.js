@@ -641,6 +641,11 @@ export async function getMatchesForActiveTournament(req, res) {
             where = sql`${where} AND m.status IN ('1H','2H','HT')`;
             orderDir = 'ASC';
             isDescending = false;
+        } else if (filterStatusRaw === 'CURRENT') {
+            // Current filter: live matches + upcoming matches (NS from today onwards)
+            where = sql`${where} AND (m.status IN ('1H','2H','HT') OR (m.status = 'NS' AND (m.match_date::timestamp + m.match_time) >= ${todayStart}))`;
+            orderDir = 'ASC';
+            isDescending = false;
         } else {
             where = sql`${where} AND (m.match_date::timestamp + m.match_time) >= ${todayStart}`;
             orderDir = 'ASC';
@@ -699,33 +704,44 @@ export async function getMatchesForActiveTournament(req, res) {
 export async function getNextMatchDay(req, res) {
     try {
         const { user_id } = req.query;
+        console.log('getNextMatchDay called with user_id:', user_id);
         if (!user_id) return res.status(400).json({ response: false, message: 'Brak user_id' });
 
         // Get user's active tournament
         const userRows = await sql`SELECT user_id, state, active_tournament FROM users WHERE user_id = ${user_id}`;
+        console.log('User rows:', userRows);
         if (userRows.length === 0) return res.status(404).json({ response: false, message: 'Użytkownik nie istnieje' });
         if (userRows[0].state !== 'active') return res.status(403).json({ response: false, message: 'Konto nieaktywne' });
         
         const activeTournamentId = userRows[0].active_tournament;
+        console.log('Active tournament ID:', activeTournamentId);
         if (!activeTournamentId) return res.status(200).json({ response: true, data: [] });
 
         // Get tournament's league
         const tours = await sql`SELECT league_id FROM tournaments WHERE id = ${activeTournamentId} LIMIT 1`;
+        console.log('Tournament data:', tours);
         if (tours.length === 0) return res.status(200).json({ response: true, data: [] });
         const leagueId = tours[0].league_id;
+        console.log('League ID:', leagueId);
 
         // Get today's date in Warsaw timezone
         const todayWarsaw = new Date();
         todayWarsaw.setHours(todayWarsaw.getHours() + 2); // Convert to Warsaw time
         const todayDate = todayWarsaw.toISOString().split('T')[0];
+        console.log('Today date:', todayDate);
 
         // Get tomorrow's date
         const tomorrow = new Date(todayWarsaw);
         tomorrow.setDate(tomorrow.getDate() + 1);
         const tomorrowDate = tomorrow.toISOString().split('T')[0];
+        console.log('Tomorrow date:', tomorrowDate);
+
+        // Find the first day with matches (today, tomorrow, or next available day)
+        let targetDate = null;
+        let matches = [];
 
         // First try to get matches for today
-        let matches = await sql`
+        matches = await sql`
             SELECT m.*, 
                 ht.name as home_team_name, ht.logo as home_team_logo, ht.label as home_team_label,
                 at.name as away_team_name, at.logo as away_team_logo, at.label as away_team_label,
@@ -738,9 +754,12 @@ export async function getNextMatchDay(req, res) {
             WHERE m.league_id = ${leagueId} AND m.match_date = ${todayDate}
             ORDER BY m.match_time ASC
         `;
+        console.log('Today matches count:', matches.length);
 
-        // If no matches today, get tomorrow's matches
-        if (matches.length === 0) {
+        if (matches.length > 0) {
+            targetDate = todayDate;
+        } else {
+            // If no matches today, get tomorrow's matches
             matches = await sql`
                 SELECT m.*, 
                     ht.name as home_team_name, ht.logo as home_team_logo, ht.label as home_team_label,
@@ -754,9 +773,68 @@ export async function getNextMatchDay(req, res) {
                 WHERE m.league_id = ${leagueId} AND m.match_date = ${tomorrowDate}
                 ORDER BY m.match_time ASC
             `;
+            console.log('Tomorrow matches count:', matches.length);
+
+            if (matches.length > 0) {
+                targetDate = tomorrowDate;
+            } else {
+                // If still no matches, get the next available match day
+                const nextMatches = await sql`
+                    SELECT m.*, 
+                        ht.name as home_team_name, ht.logo as home_team_logo, ht.label as home_team_label,
+                        at.name as away_team_name, at.logo as away_team_logo, at.label as away_team_label,
+                        l.league_name, l.league_country,
+                        (m.match_date::timestamp + m.match_time) as dt
+                    FROM matches m
+                    LEFT JOIN teams ht ON m.home_team = ht.team_id
+                    LEFT JOIN teams at ON m.away_team = at.team_id
+                    LEFT JOIN leagues l ON m.league_id = l.league_id::int
+                    WHERE m.league_id = ${leagueId} AND m.match_date > ${todayDate}
+                    ORDER BY m.match_date ASC, m.match_time ASC
+                    LIMIT 10
+                `;
+                console.log('Next available matches count:', nextMatches.length);
+                
+                if (nextMatches.length > 0) {
+                    // Get all matches from the first available day
+                    const firstMatchDate = nextMatches[0].match_date;
+                    matches = await sql`
+                        SELECT m.*, 
+                            ht.name as home_team_name, ht.logo as home_team_logo, ht.label as home_team_label,
+                            at.name as away_team_name, at.logo as away_team_logo, at.label as away_team_label,
+                            l.league_name, l.league_country,
+                            (m.match_date::timestamp + m.match_time) as dt
+                        FROM matches m
+                        LEFT JOIN teams ht ON m.home_team = ht.team_id
+                        LEFT JOIN teams at ON m.away_team = at.team_id
+                        LEFT JOIN leagues l ON m.league_id = l.league_id::int
+                        WHERE m.league_id = ${leagueId} AND m.match_date = ${firstMatchDate}
+                        ORDER BY m.match_time ASC
+                    `;
+                    targetDate = firstMatchDate;
+                }
+            }
         }
 
-        return res.status(200).json({ response: true, data: matches });
+        // Group matches by date (should be all the same date now)
+        const groupedMatches = {};
+        matches.forEach(match => {
+            const dateKey = match.match_date;
+            if (!groupedMatches[dateKey]) {
+                groupedMatches[dateKey] = [];
+            }
+            groupedMatches[dateKey].push(match);
+        });
+
+        console.log('Final matches count:', matches.length);
+        console.log('Target date:', targetDate);
+        console.log('Grouped matches keys:', Object.keys(groupedMatches));
+        
+        return res.status(200).json({ 
+            response: true, 
+            data: groupedMatches,
+            targetDate: targetDate
+        });
 
     } catch (error) {
         console.error('Error getting next match day:', error);
@@ -801,6 +879,11 @@ export async function getAllUserMatches(req, res) {
             isDescending = true;
         } else if (filterStatusRaw === 'LIVE') {
             where = sql`${where} AND m.status IN ('1H','2H','HT')`;
+            orderDir = 'ASC';
+            isDescending = false;
+        } else if (filterStatusRaw === 'CURRENT') {
+            // Current filter: live matches + upcoming matches (NS from today onwards)
+            where = sql`${where} AND (m.status IN ('1H','2H','HT') OR (m.status = 'NS' AND (m.match_date::timestamp + m.match_time) >= ${todayStart}))`;
             orderDir = 'ASC';
             isDescending = false;
         } else {

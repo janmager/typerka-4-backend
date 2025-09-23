@@ -59,14 +59,24 @@ export async function createOrUpdateBet(req, res) {
         }
 
         // Check if match is still available for betting (not started)
-        const matchDate = new Date(`${match[0].match_date}T${match[0].match_time}`);
-        const now = new Date();
-        
-        if (matchDate <= now) {
-            return res.status(400).json({
-                response: false,
-                message: "Nie można typować na mecz, który już się rozpoczął"
-            });
+        // Use Europe/Warsaw timezone for consistent comparison
+        try {
+            const matchDateStr = match[0].match_date.split('T')[0]; // Get YYYY-MM-DD part
+            const matchDateTime = new Date(`${matchDateStr}T${match[0].match_time}`);
+            
+            // Get current time in Europe/Warsaw timezone
+            const now = new Date();
+            const warsawTime = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Warsaw"}));
+            
+            if (matchDateTime <= warsawTime) {
+                return res.status(400).json({
+                    response: false,
+                    message: "Nie można typować na mecz, który już się rozpoczął"
+                });
+            }
+        } catch (error) {
+            console.error('Error in time validation:', error);
+            // Continue without time validation if there's an error
         }
 
         // Check if bet already exists
@@ -113,6 +123,55 @@ export async function createOrUpdateBet(req, res) {
     }
 }
 
+// User: Get user's bet for specific match
+export async function getUserBetForMatch(req, res) {
+    try {
+        const { user_id, match_id } = req.query;
+        
+        console.log(`🎯 [BETS] Get user bet for match - User: ${user_id}, Match: ${match_id}`);
+
+        if (!user_id) {
+            return res.status(400).json({
+                response: false,
+                message: "Brak user_id"
+            });
+        }
+
+        if (!match_id) {
+            return res.status(400).json({
+                response: false,
+                message: "Brak match_id"
+            });
+        }
+
+        const bet = await sql`
+            SELECT 
+                b.*,
+                m.home_team, m.away_team, m.actual_home_score, m.actual_away_score,
+                m.match_date, m.match_time, m.status as match_status,
+                ht.name as home_team_name, ht.logo as home_team_logo,
+                at.name as away_team_name, at.logo as away_team_logo
+            FROM bets b
+            JOIN matches m ON b.match_id = m.match_id
+            LEFT JOIN teams ht ON m.home_team = ht.team_id
+            LEFT JOIN teams at ON m.away_team = at.team_id
+            WHERE b.user_id = ${user_id} AND b.match_id = ${match_id}
+        `;
+
+        return res.status(200).json({
+            response: true,
+            data: bet.length > 0 ? bet[0] : null
+        });
+
+    } catch (error) {
+        console.error('Error getting user bet for match:', error);
+        return res.status(500).json({
+            response: false,
+            message: "Błąd serwera podczas pobierania typu"
+        });
+    }
+}
+
 // User: Get user's bets
 export async function getUserBets(req, res) {
     try {
@@ -131,7 +190,7 @@ export async function getUserBets(req, res) {
         const bets = await sql`
             SELECT 
                 b.*,
-                m.home_team, m.away_team, m.home_score, m.away_score,
+                m.home_team, m.away_team, m.actual_home_score, m.actual_away_score,
                 m.match_date, m.match_time, m.status as match_status,
                 ht.name as home_team_name, ht.logo as home_team_logo,
                 at.name as away_team_name, at.logo as away_team_logo
@@ -208,7 +267,7 @@ export async function getAllBets(req, res) {
             SELECT 
                 b.*,
                 u.name as user_name, u.email as user_email,
-                m.home_team, m.away_team, m.home_score, m.away_score,
+                m.home_team, m.away_team, m.actual_home_score, m.actual_away_score,
                 m.match_date, m.match_time, m.status as match_status,
                 ht.name as home_team_name, ht.logo as home_team_logo,
                 at.name as away_team_name, at.logo as away_team_logo
@@ -336,7 +395,7 @@ export async function getBetDetails(req, res) {
             SELECT 
                 b.*,
                 u.name as user_name, u.email as user_email, u.avatar as user_avatar,
-                m.home_team, m.away_team, m.home_score, m.away_score,
+                m.home_team, m.away_team, m.actual_home_score, m.actual_away_score,
                 m.match_date, m.match_time, m.status as match_status,
                 m.stadium, m.league_id,
                 ht.name as home_team_name, ht.logo as home_team_logo,
