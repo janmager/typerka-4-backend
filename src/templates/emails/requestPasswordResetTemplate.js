@@ -8,83 +8,122 @@ export const requestPasswordResetEmailTemplate = (email_receiver, user_id, email
         <title>Reset hasła - Typerka</title>
         <style>
             body {
-                font-family: Arial, sans-serif;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                 line-height: 1.6;
                 color: #333;
                 max-width: 600px;
                 margin: 0 auto;
-                padding: 20px;
+                padding: 0;
+                background-color: #f8f9fa;
+            }
+            .container {
+                background-color: white;
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                margin: 20px;
             }
             .header {
-                background-color: #1f2937;
+                background: linear-gradient(135deg, #efb414 0%, #d4a017 100%);
                 color: white;
-                padding: 20px;
+                padding: 30px 20px;
                 text-align: center;
-                border-radius: 8px 8px 0 0;
+            }
+            .logo {
+                width: 80px;
+                height: 80px;
+                margin: 0 auto 15px;
+                background-color: white;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            }
+            .logo img {
+                width: 50px;
+                height: 50px;
+                object-fit: contain;
             }
             .content {
-                background-color: #f9fafb;
-                padding: 30px;
-                border-radius: 0 0 8px 8px;
+                padding: 40px 30px;
+                text-align: center;
             }
             .button {
                 display: inline-block;
-                background-color: #3b82f6;
+                background: linear-gradient(135deg, #efb414 0%, #d4a017 100%);
                 color: white;
-                padding: 12px 24px;
+                padding: 16px 32px;
                 text-decoration: none;
-                border-radius: 6px;
+                border-radius: 8px;
+                margin: 25px 0;
+                font-weight: 600;
+                font-size: 16px;
+                box-shadow: 0 4px 12px rgba(239, 180, 20, 0.3);
+                transition: transform 0.2s ease;
+            }
+            .button:hover {
+                transform: translateY(-2px);
+            }
+            .link-box {
+                background-color: #f8f9fa;
+                border: 1px solid #e9ecef;
+                border-radius: 8px;
+                padding: 15px;
                 margin: 20px 0;
-                font-weight: bold;
+                word-break: break-all;
+                font-size: 14px;
+                color: #6c757d;
+            }
+            .warning-box {
+                background-color: #fff3cd;
+                border: 1px solid #ffeaa7;
+                border-radius: 8px;
+                padding: 15px;
+                margin: 20px 0;
+                color: #856404;
+                font-size: 14px;
             }
             .footer {
                 text-align: center;
-                margin-top: 30px;
-                color: #6b7280;
+                padding: 20px 30px;
+                color: #6c757d;
                 font-size: 14px;
+                background-color: #f8f9fa;
+                border-top: 1px solid #e9ecef;
             }
         </style>
     </head>
     <body>
-        <div class="header">
-            <h1>⚽ Typerka</h1>
-            <p>Reset hasła</p>
-        </div>
-        
-        <div class="content">
-            <h2>Żądanie resetowania hasła</h2>
-            <p>Cześć!</p>
-            <p>Otrzymałeś ten email, ponieważ ktoś (prawdopodobnie Ty) poprosił o zresetowanie hasła do Twojego konta w grze Typerka.</p>
+        <div class="container">
+            <div class="header">
+                <div class="logo">
+                    <img src="https://typerka-2026.vercel.app/assets/brand/logo.png" alt="Typerka Logo">
+                </div>
+                <h1 style="margin: 0; font-size: 28px; font-weight: 700;">Reset hasła</h1>
+                <p style="margin: 10px 0 0; opacity: 0.9;">Odzyskaj dostęp do konta</p>
+            </div>
             
-            <div style="text-align: center;">
+            <div class="content">
+                <p style="font-size: 18px; margin-bottom: 25px;">Otrzymałeś prośbę o zresetowanie hasła. Kliknij przycisk poniżej:</p>
+                
                 <a href="${process.env.API_URL}/api/users/resetPassword?user_id=${user_id}&email_token=${email_token}" class="button">
                     Zresetuj hasło
                 </a>
+                
+                <p style="font-size: 14px; color: #6c757d; margin-top: 30px;">Jeśli przycisk nie działa, skopiuj link:</p>
+                <div class="link-box">
+                    ${process.env.API_URL}/api/users/resetPassword?user_id=${user_id}&email_token=${email_token}
+                </div>
+                
+                <div class="warning-box">
+                    <strong>⚠️ Ważne:</strong> Link jest ważny 24h. Jeśli nie prosiłeś o reset, zignoruj ten email.
+                </div>
             </div>
             
-            <p>Jeśli przycisk nie działa, skopiuj i wklej poniższy link do przeglądarki:</p>
-            <p style="word-break: break-all; background-color: #e5e7eb; padding: 10px; border-radius: 4px;">
-                ${process.env.API_URL}/api/users/resetPassword?user_id=${user_id}&email_token=${email_token}
-            </p>
-            
-            <p><strong>Ważne informacje:</strong></p>
-            <ul>
-                <li>Ten link jest ważny przez 24 godziny</li>
-                <li>Po kliknięciu w link będziesz mógł ustawić nowe hasło</li>
-                <li>Jeśli nie prosiłeś o reset hasła, zignoruj ten email</li>
-            </ul>
-            
-            <p><strong>Bezpieczeństwo:</strong></p>
-            <ul>
-                <li>Nigdy nie udostępniaj tego linku nikomu</li>
-                <li>Używaj silnego hasła zawierającego litery, cyfry i znaki specjalne</li>
-                <li>Jeśli podejrzewasz nieautoryzowany dostęp, skontaktuj się z nami</li>
-            </ul>
-        </div>
-        
-        <div class="footer">
-            <p>To wiadomość została wysłana automatycznie. Nie odpowiadaj na nią.</p>
-            <p>© 2024 Typerka. Wszystkie prawa zastrzeżone.</p>
+            <div class="footer">
+                <p style="margin: 0;">© 2024 Typerka. Wszystkie prawa zastrzeżone.</p>
+            </div>
         </div>
     </body>
     </html>
@@ -93,27 +132,13 @@ export const requestPasswordResetEmailTemplate = (email_receiver, user_id, email
 
 export const requestPasswordResetEmailTextTemplate = (email_receiver, user_id, email_token) => {
     return `
-Żądanie resetowania hasła
+Reset hasła - Typerka
 
-Cześć!
-
-Otrzymałeś ten email, ponieważ ktoś (prawdopodobnie Ty) poprosił o zresetowanie hasła do Twojego konta w grze Typerka.
-
-Aby zresetować hasło, skopiuj i wklej poniższy link do przeglądarki:
+Otrzymałeś prośbę o zresetowanie hasła. Kliknij link:
 
 ${process.env.API_URL}/api/users/resetPassword?user_id=${user_id}&email_token=${email_token}
 
-Ważne informacje:
-- Ten link jest ważny przez 24 godziny
-- Po kliknięciu w link będziesz mógł ustawić nowe hasło
-- Jeśli nie prosiłeś o reset hasła, zignoruj ten email
-
-Bezpieczeństwo:
-- Nigdy nie udostępniaj tego linku nikomu
-- Używaj silnego hasła zawierającego litery, cyfry i znaki specjalne
-- Jeśli podejrzewasz nieautoryzowany dostęp, skontaktuj się z nami
-
-To wiadomość została wysłana automatycznie. Nie odpowiadaj na nią.
+Link jest ważny 24h. Jeśli nie prosiłeś o reset, zignoruj ten email.
 
 © 2024 Typerka. Wszystkie prawa zastrzeżone.
     `;
