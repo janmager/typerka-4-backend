@@ -295,6 +295,56 @@ export async function setActiveTournament(req, res) {
     }
 }
 
+// Public: Get user's tournament join status
+export async function getUserTournamentStatus(req, res) {
+    try {
+        const { user_id } = req.query;
+        
+        if (!user_id) {
+            return res.status(400).json({
+                response: false,
+                message: "Brak user_id"
+            });
+        }
+
+        // Get user's active tournament and join status
+        const userTournament = await sql`
+            SELECT 
+                u.active_tournament,
+                tj.status as join_status,
+                tj.tournament_id
+            FROM users u
+            LEFT JOIN tournaments_joins tj ON tj.tournament_id = u.active_tournament AND tj.user_id = u.user_id
+            WHERE u.user_id = ${user_id}
+        `;
+
+        if (userTournament.length === 0) {
+            return res.status(404).json({
+                response: false,
+                message: "Użytkownik nie istnieje"
+            });
+        }
+
+        const result = userTournament[0];
+
+        return res.status(200).json({
+            response: true,
+            data: {
+                active_tournament: result.active_tournament,
+                join_status: result.join_status,
+                tournament_id: result.tournament_id
+            }
+        });
+
+    } catch (error) {
+        console.error('Error getting user tournament status:', error);
+        return res.status(500).json({
+            response: false,
+            message: "Błąd serwera podczas pobierania statusu turnieju"
+        });
+    }
+}
+
 // Admin: Get all tournaments (including inactive)
 export async function getAllTournamentsAdmin(req, res) {
     try {

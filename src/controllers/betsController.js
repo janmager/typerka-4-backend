@@ -426,3 +426,76 @@ export async function getBetDetails(req, res) {
     }
 }
 
+// User: Get tournament participants' bets for a specific match
+export async function getTournamentParticipantsBets(req, res) {
+    try {
+        const { match_id } = req.query;
+        const { user_id } = req.query;
+        
+        console.log(`🎯 [BETS] Get tournament participants bets - User: ${user_id}, Match: ${match_id}`);
+
+        if (!user_id) {
+            return res.status(400).json({
+                response: false,
+                message: "Brak user_id"
+            });
+        }
+
+        if (!match_id) {
+            return res.status(400).json({
+                response: false,
+                message: "Brak match_id"
+            });
+        }
+
+        // Get user's active tournament
+        const user = await sql`
+            SELECT active_tournament FROM users WHERE user_id = ${user_id}
+        `;
+
+        if (user.length === 0) {
+            return res.status(404).json({
+                response: false,
+                message: "Użytkownik nie istnieje"
+            });
+        }
+
+        const activeTournamentId = user[0].active_tournament;
+        if (!activeTournamentId) {
+            return res.status(200).json({
+                response: true,
+                data: []
+            });
+        }
+
+        // Get all active tournament participants' bets for this match
+        const participantsBets = await sql`
+            SELECT 
+                b.home_bet,
+                b.away_bet,
+                u.name as user_name,
+                u.avatar as user_avatar,
+                u.user_id,
+                tj.status as tournament_status
+            FROM tournaments_joins tj
+            JOIN users u ON u.user_id = tj.user_id
+            LEFT JOIN bets b ON b.user_id = tj.user_id AND b.match_id = ${match_id}
+            WHERE tj.tournament_id = ${activeTournamentId} 
+            AND tj.status = 'active'
+            ORDER BY u.name ASC
+        `;
+
+        return res.status(200).json({
+            response: true,
+            data: participantsBets
+        });
+
+    } catch (error) {
+        console.error('Error getting tournament participants bets:', error);
+        return res.status(500).json({
+            response: false,
+            message: "Błąd serwera podczas pobierania typów uczestników turnieju"
+        });
+    }
+}
+

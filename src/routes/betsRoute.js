@@ -1,5 +1,5 @@
 import express from "express";
-import { createOrUpdateBet, getUserBets, getUserBetForMatch } from "../controllers/betsController.js";
+import { createOrUpdateBet, getUserBets, getUserBetForMatch, getTournamentParticipantsBets } from "../controllers/betsController.js";
 
 const router = express.Router();
 
@@ -11,6 +11,9 @@ router.get("/", getUserBets);
 
 // GET /api/bets/match - Get user's bet for specific match
 router.get("/match", getUserBetForMatch);
+
+// GET /api/bets/tournament-participants - Get tournament participants' bets for a match
+router.get("/tournament-participants", getTournamentParticipantsBets);
 
 export default router;
 

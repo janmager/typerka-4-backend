@@ -1,5 +1,5 @@
 import express from "express";
-import { getAllTournaments, joinTournament, getTournamentParticipants, getActiveTournament, setActiveTournament } from "../controllers/tournamentsController.js";
+import { getAllTournaments, joinTournament, getTournamentParticipants, getActiveTournament, setActiveTournament, getUserTournamentStatus } from "../controllers/tournamentsController.js";
 
 const router = express.Router();
 
@@ -13,5 +13,7 @@ router.get("/:tournament_id/participants", getTournamentParticipants);
 router.get("/active", getActiveTournament);
 // POST /api/tournaments/active - set active tournament for user
 router.post("/active", setActiveTournament);
+// GET /api/tournaments/user-status?user_id=... - get user's tournament join status
+router.get("/user-status", getUserTournamentStatus);
 
 export default router;
